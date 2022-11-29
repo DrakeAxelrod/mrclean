@@ -59,3 +59,83 @@ $ is evaluation / reduction / call / invoke
 - [Parsec](https://hackage.haskell.org/package/parsec)
 - [Clean](<https://en.wikipedia.org/wiki/Clean_(programming_language)>)
 - [Graph-Reduction (concept)](https://en.wikipedia.org/wiki/Graph_reduction)
+
+
+# Parsec Study
+Parser is Monad => Applicative => Functor
+Also Alternative
+
+How parser combination works in essence
+```haskell
+val1 :: Parser Val1
+val1 = constructorOfVa1 <$> {-chained parsers-}
+```
+
+An example of parsing `MyType`
+```haskell
+-- (<$>) :: (Functor f) => (a->b) -> f a -> f b
+-- (<*>) :: (Applicative f) => f (a -> b) -> f a -> f b
+
+data MyType a b c = myConstructor a b c
+-- thus
+myConstructor :: a -> b -> c -> MyType a b c
+
+-- provided impl of these (basics like Int and Char are provided by parsec lib)
+p1 :: Parser a
+p2 :: Parser b
+p3 :: Parser c
+
+-- incremental
+p1' :: Parser (b -> c -> MyType a b c)
+p1' = foo <$> p1
+
+p2' :: Parser (c -> MyType a b c)
+p2' = p1' <*> p2
+
+p3' :: Parser (MyType a b c)
+p3' = p2' <*> p3
+
+-- or simply
+p3'' :: Parser (MyType a b c)
+p3'' = foo <$> p1 <*> p2 <*> p3
+
+-- with do
+p3''' :: Parser (MyType a b c)
+p3''' = do
+    a' <- p1
+    b' <- p2
+    c' <- p3
+    return(myConstructor a' b' c')
+ ```
+
+`p <?> s` displays error message `s` when `p` fails
+```haskell
+<?> :: Parser a -> String -> Parser a
+```
+Parsers should follow lexeme structure, meaning they consume *trailing* whitespace
+
+```haskell
+lexeme :: Parser a -> Parser a
+lexeme p = p <* spaces
+```
+
+Top level parser should be the only parser consuming *leading* whitespace, but a general
+method is good to have
+
+```haskell
+leadingWS :: Parser a -> Parser a
+leadingWS = spaces *> p
+```
+
+## `try` vs `<|>`
+```haskell
+try ::  Parser a -> Parser a
+(<|>) :: (Alternative f) =>  f a -> f a -> f a
+```
+The `a <|> b` (or *option*) operator tries to apply the first parser `a` and **if** it 
+fails **without** consuming input, the other parser `b` is used. If `a` were to fail after
+consuming input, the entire expression fails.
+
+`try a` creates a new parser that *if* `a` fails, backtracks the consumed stream and thus
+behaves as if no input was consumed in the case of `<|>`. Usefull for parsers that
+tries to parse a large (context aware?) structure.
