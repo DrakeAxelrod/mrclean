@@ -26,6 +26,7 @@ source-repository head
 library
   exposed-modules:
       Common
+      Implicit
       Lib
       MrCParser
   other-modules:
