@@ -54,20 +54,20 @@ parseTerm = parseParen <|> parseVariable
 
 parseNonParen :: Parser Expr
 -- ^ Parse only expressions that don't begin with parenthesis
-parseNonParen = try parseApp <|> parseVariable
+parseNonParen = try parseApply <|> parseVariable
 
 parseExpr :: Parser Expr
 -- ^ Parse an entire expression
-parseExpr = try parseFunc <|> try parseApp <|> parseTerm
+parseExpr = try parseFunc <|> try parseApply <|> parseTerm
 
 -- expr | expr-->
 -- expr expr expr-->
-parseApp :: Parser Expr
-parseApp = lexeme $ chainl1 parseTerm op
+parseApply :: Parser Expr
+parseApply = lexeme $ chainl1 parseTerm op
   where
     op = do
         void parsePipe
-        return ExprApp
+        return ExprApply
 
 -- lhs sep rhs1 sep rhs2 ...
 parseInfix :: Parser Expr
@@ -75,7 +75,7 @@ parseInfix = lexeme $ chainl1 parseTerm op
   where
     op = do
         x <- parseTerm
-        return $ \lhs rhs -> ExprApp rhs (ExprApp lhs x)
+        return $ \lhs rhs -> ExprApply rhs (ExprApply lhs x)
 
 parseSep :: Parser a -> Parser b -> Parser c -> (b -> c -> d) -> Parser d
 -- ^ `parseSep sep lhs rhs cstr` creates a parser that tries to parse `lhs` and `rhs`

@@ -25,10 +25,7 @@ source-repository head
 
 library
   exposed-modules:
-      Common
-      Implicit
-      Lib
-      MrCParser
+      Demo
   other-modules:
       Paths_mrclean
   hs-source-dirs:
