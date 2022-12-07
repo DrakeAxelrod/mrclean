@@ -1,54 +1,129 @@
-module MrCParser (regularParse, completeParse, parseExpr) where
+module MrCParser where 
 
-import           Control.Applicative (many, (*>), (<$), (<$>), (<*), (<*>),
-                                      (<|>))
-import           Control.Monad       (ap, void)
-import           Data.Char           (isSpace)
-import           Text.Parsec         (chainl1, eof, many1, parse, (<?>), try)
-import           Text.Parsec.Char    (char, digit, letter, oneOf, satisfy,
-                                      spaces)
-import           Text.Parsec.Error   (ParseError)
-import           Text.Parsec.String  (Parser)
+import Text.Parsec
+import Text.Parsec.String
+import Text.Parsec.Expr
+import Text.Parsec.Language (emptyDef)
+import qualified Text.Parsec.Token as Tok
+import Data.Functor.Identity (Identity)
 
-import           Common              (Expr (..))
+{- ===== Language Explanation =====
+  Functional language that mimics lambda calculus
+  Variables are alphanumerical strings (eg x, x1, my_var)
+  Abstraction (or functions) are written as (x -> M), where x is a bound variable and M is an expressions
+  Applications are written as (N|M) where N is applied to the function M
+  
+  Parenthesis are used to group expressions e.g: (x -> (x|x)) is a valid expression
+  You can assign to variables with the following syntax (x := M), which means that M is assigned to x
+  reserved operators: ->, |, :=, (, ), $, &
+  
+  Examples:
+  assign x to the identity function: x := (x -> x)
+  assign y to the function that takes a function and applies it to itself: y := (f -> (f|f))
+  assign z to the function that takes a function and applies it to itself twice: z := (f -> ((f|f)|f))
+  etc...
+  1 + 2 * 3 = 7
+  1 + (2 * 3) = 7
+  (1 + 2) * 3 = 9
 
--- https://github.com/JakeWheat/intro_to_parsing/blob/master/FunctionsAndTypesForParsing.lhs
-regularParse :: Parser a -> String -> Either ParseError a
-regularParse p = parse p ""
+  $ reduces the expression to its beta normal form
+  -> is used to define functions or lambdas (eg: x -> x)
+  | is used to apply functions (eg: (x|x))
+  := is used to assign a value to a variable
+  arithmetic operators: 
+    _implicit_addition: 1 2 = 3
+    _implicit_multiplication: 3 2 = 6
+    _implicit_subtraction: 3 2 = 1
+    _implicit_division: 6 2 = 3
+    _implicit_modulo: 7 2 = 1
+    _implicit_exponentiation: 2 3 = 8
+    _implicit_factorial: 5! = 120
+    _implicit_and: 1 1 = 1
+    _implicit_or: 1 0 = 1
+    _implicit_xor: 1 0 = 1
+    _implicit_not: 1 = 0
+    _implicit_greater_than: 2 1 = 1
+    _implicit_less_than: 1 2 = 1
+    _implicit_greater_than_or_equal_to: 2 2 = 1
+    _implicit_less_than_or_equal_to: 2 2 = 1
+    _implicit_equal_to: 2 2 = 1
+    _implicit_not_equal_to: 2 1 = 1
+-}
 
-completeParse :: Parser a -> String -> Either ParseError a
-completeParse = regularParse . parseEof . parseStart
+data Expr = Var String
+          | Application Expr Expr
+          | Lambda Expr Expr
+          | Assign Expr Expr
+          deriving (Show)
 
-parseEof :: Parser a -> Parser a
-parseEof p = p <* eof
+mrCleanDef :: Tok.LanguageDef st
+mrCleanDef = emptyDef
+          { Tok.commentStart    = "--[["
+          , Tok.commentEnd      = "]]"
+          , Tok.commentLine     = "--"
+          , Tok.nestedComments  = True
+          , Tok.identStart      = noneOf ["\n", "\t", "\r", "->", "|", ":="]
+            -- noneOf "|\n \t\r"
+          , Tok.identLetter     = noneOf "|\n \t\r"
+          -- , opStart         = opLetter lexer
+          -- , opLetter        = oneOf ":!#$%&*+./<=>?@\\^|-~"
+          , Tok.reservedOpNames = ["|" , "->", ":="]
+          , Tok.reservedNames   = []
+          , Tok.caseSensitive   = False
+          }
 
-parseStart :: Parser a -> Parser a
-parseStart = (spaces *>)
+lexer :: Tok.TokenParser st
+lexer = Tok.makeTokenParser mrCleanDef
 
-lexeme :: Parser a -> Parser a
-lexeme p = p <* spaces
+identifier :: Parser String
+identifier = Tok.identifier lexer
 
-parseVariableS :: Parser String
-parseVariableS = lexeme $ many1 $ satisfy (\c -> not (isSpace c) && c /= '|')
+reservedOp :: String -> Parser ()
+reservedOp = Tok.reservedOp lexer
 
-parseVariable :: Parser Expr
-parseVariable = ExprVar <$> parseVariableS
+parens :: Parser a -> Parser a
+parens = Tok.parens lexer
 
-parseApp :: Parser Expr
-parseApp = lexeme $ chainl1 parseVariable op
-  where
-    op = do
-        void parsePipe
-        return ExprApp
+whiteSpace :: Parser ()
+whiteSpace = Tok.whiteSpace lexer
 
-parseExpr :: Parser Expr
-parseExpr = try parseApp <|> parseVariable
+pipe :: Parser Expr
+pipe = do
+  e1 <- expr
+  reservedOp "|"
+  e2 <- expr
+  return $ Application e1 e2
 
--- | added to make the parser more robust
-parsePipe :: Parser Char
-parsePipe = lexeme $ char '|'
+assign :: Parser Expr
+assign = do
+  var <- expr
+  reservedOp ":="
+  e <- expr
+  return $ Assign var e
 
-parseParen :: Parser Expr
-parseParen = (lexeme $ char '(') *> parseExpr <* (lexeme $ char ')')
+lambda :: Parser Expr
+lambda = do
+  var <- expr
+  reservedOp "->"
+  e <- expr
+  return $ Lambda var e
+
+expr :: Parser Expr
+expr = buildExpressionParser table term <?> "expression"
+
+table :: [[Operator String () Identity Expr]]
+table = [ [Prefix (reservedOp "$" >> return (Application (Var "reduce")))]
+        , [Infix (reservedOp "|" >> return Application) AssocLeft]
+        , [Infix (reservedOp ":=" >> return Assign) AssocLeft]
+        , [Infix (reservedOp "->" >> return Lambda) AssocLeft]
+        ]
+
+term :: Parser Expr
+term =  parens expr
+    <|> Var <$> identifier
+    <?> "term"
+
+parseExpr :: String -> Either ParseError Expr
+parseExpr = parse (whiteSpace >> expr) "<stdin>"
 
 

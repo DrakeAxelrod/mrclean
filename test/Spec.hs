@@ -4,7 +4,7 @@
 import MrCParser (
   regularParse,
   completeParse,
-  parseExpr,
+  parseForTest,
   )
 
 
@@ -31,11 +31,11 @@ readTestFile = readFile "./assets/test.mrc"
 
 -- | parse the test file
 parseTestFile :: IO (Either ParseError Expr)
-parseTestFile = do completeParse parseExpr <$> readTestFile
-
+parseTestFile = do completeParse parseForTest <$> readTestFile
+-- parseTestFile = do completeParse parseFunc <$> readTestFile
 stripExpr :: Expr -> String
 stripExpr (ExprVar x) = x
-stripExpr (ExprApp lhs rhs) = "(" ++ stripExpr lhs ++ "|" ++ stripExpr rhs ++ ")"
+stripExpr (ExprApply lhs rhs) = "(" ++ stripExpr lhs ++ "|" ++ stripExpr rhs ++ ")"
 
 parseTestFileAndStrip :: IO (Either ParseError String)
 parseTestFileAndStrip = do
