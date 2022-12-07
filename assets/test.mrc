@@ -1,9 +1,13 @@
-# f := x -> (x(1|_implicit_add))
-# 2 + 3
+/*
+  this is a block comment
+*/
 
-# 2|(3|f)
+// this is a single line comment
+
+// this assigns the lambda(y) where we apply y to 1
+// x := y -> y|1
+
+
+// + := x -> y -> y|(x|_implicit_additon)
 
 x := 1
-y := 2
-
-main := x + y

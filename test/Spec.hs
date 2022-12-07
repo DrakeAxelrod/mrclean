@@ -1,42 +1,83 @@
--- import Lib
--- 
 
-import MrCParser (
-  regularParse,
-  completeParse,
-  parseForTest,
-  )
+import MrCParser
+
+import Test.QuickCheck
 
 
-import Common (Expr (..))
+statements :: [(String, Expr, Bool)]
+statements = [
+  ("x := y", Assign (Var "x") (Var "y"), True),
+  ("x -> x", Lambda (Var "x") (Var "x"), True),
+  ("x|y", Application (Var "x") (Var "y"), True),
+  ("v", Var "v", True),
+  ("x := (x -> x)", Assign (Var "x") (Lambda (Var "x") (Var "x")), True),
+  ("y := (f -> (f|f))", Assign (Var "y") (Lambda (Var "f") (Application (Var "f") (Var "f"))), True),
+  ("z := (f -> ((f|f)|f))", Assign (Var "z") (Lambda (Var "f") (Application (Application (Var "f") (Var "f")) (Var "f"))), True),
+  ("1 + 2", (Application (Application (Var "1") (Var "+")) (Var "2")), True),
+  ("1 + 2 * 3 = 7", (Application (Application (Application (Application (Application (Application (Var "1") (Var "+")) (Var "2")) (Var "*")) (Var "3")) (Var "=")) (Var "7")), True),
+  ("(1 + 2) * 3 = 9", (Application (Application (Application (Application (Application (Application (Var "1") (Var "+")) (Var "2")) (Var "*")) (Var "3")) (Var "=")) (Var "9")), True),
+  ("1 + 2 * 3", (Application (Application (Application (Application (Var "1") (Var "+")) (Var "2")) (Var "*")) (Var "3")), True),
+  ("1 + (2 * 3)", (Application (Application (Var "1") (Var "+")) (Application (Application (Var "2") (Var "*")) (Var "3"))), True),
+  ("(1 + 2) * 3", (Application (Application (Application (Application (Var "1") (Var "+")) (Var "2")) (Var "*")) (Var "3")), True),
+  ("x := 1 + 2", Assign (Var "x") (Application (Application (Var "1") (Var "+")) (Var "2")), True),
+  ("x := 1 + 2 | 3", Assign (Var "x") (Application (Application (Application (Var "1") (Var "+")) (Var "2")) (Var "3")), True),
+  ("x := 1 | (y -> y + 1) | 2", (Assign (Var "x") (Application (Application (Var "1") (Lambda (Var "y") (Application (Application (Var "y") (Var "+")) (Var "1")))) (Var "2"))), True)
+  ]
 
--- import           Control.Applicative (many, (*>), (<$), (<$>), (<*), (<*>),
---                                       (<|>))
--- import           Control.Monad       (ap, void)
--- import           Data.Char           (isSpace)
--- import           Text.Parsec         (chainl1, eof, many1, parse, (<?>), try)
--- import           Text.Parsec.Char    (char, digit, letter, oneOf, satisfy,
---                                       spaces)
-import           Text.Parsec.Error   (ParseError)
--- import           Text.Parsec.String  (Parser)
+testParseExpr :: String -> Expr -> Bool
+testParseExpr s e = case parseExpr s of
+  Left _ -> False
+  Right e' -> e == e'
 
+prop_parseExpr :: String -> Expr -> Bool
+prop_parseExpr s e = testParseExpr s e
+
+testAllStatements :: [(String, Expr, Bool)] -> Bool
+testAllStatements [] = True
+testAllStatements ((s, e, b):xs) = testParseExpr s e == b && testAllStatements xs
+
+prop_allStatements :: Bool
+prop_allStatements = testAllStatements statements
+
+testAssignment :: String -> Bool
+testAssignment s = case parseExpr s of
+  Left _ -> False
+  Right (Assign _ _) -> True
+  Right _ -> False
+
+prop_assignment :: String -> Bool
+prop_assignment s = testAssignment s
+
+testLambda :: String -> Bool
+testLambda s = case parseExpr s of
+  Left _ -> False
+  Right (Lambda _ _) -> True
+  Right _ -> False
+
+prop_lambda :: String -> Bool
+prop_lambda s = testLambda s
+
+testApplication :: String -> Bool
+testApplication s = case parseExpr s of
+  Left _ -> False
+  Right (Application _ _) -> True
+  Right _ -> False
+
+prop_application :: String -> Bool
+prop_application s = testApplication s
+
+testVariable :: String -> Bool
+testVariable s = case parseExpr s of
+  Left _ -> False
+  Right (Var _) -> True
+  Right _ -> False
+
+prop_variable :: String -> Bool
+prop_variable s = testVariable s
 
 main :: IO ()
-main = parseTestFileAndStrip >>= print
-
--- | read in test file ./assets/test.mrc
--- | and return the contents as a String
-readTestFile :: IO String
-readTestFile = readFile "./assets/test.mrc"
-
--- | parse the test file
-parseTestFile :: IO (Either ParseError Expr)
-parseTestFile = do completeParse parseForTest <$> readTestFile
--- parseTestFile = do completeParse parseFunc <$> readTestFile
-stripExpr :: Expr -> String
-stripExpr (ExprVar x) = x
-stripExpr (ExprApply lhs rhs) = "(" ++ stripExpr lhs ++ "|" ++ stripExpr rhs ++ ")"
-
-parseTestFileAndStrip :: IO (Either ParseError String)
-parseTestFileAndStrip = do
-  (fmap stripExpr) <$> parseTestFile
+main = do
+  -- test allTestStatements
+  quickCheck prop_allStatements
+  -- show the one that fails
+  print $ filter (\(s, e, b) -> not $ testParseExpr s e) statements
