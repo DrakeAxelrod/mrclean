@@ -23,6 +23,7 @@ dependencies:
 - base >= 4.7 && < 5
 - parsec
 - QuickCheck
+- optparse-applicative
 
 ghc-options:
 - -Wall
@@ -39,7 +40,7 @@ library:
   source-dirs: src
 
 executables:
-  mrclean-exe:
+  mrclean:
     main:                Main.hs
     source-dirs:         app
     ghc-options:

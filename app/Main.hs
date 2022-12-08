@@ -1,6 +1,6 @@
 module Main (main) where
 
--- import Lib
+import Lib (cli)
 
 main :: IO ()
-main = undefined
+main = cli

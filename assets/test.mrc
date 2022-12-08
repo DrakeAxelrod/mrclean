@@ -9,5 +9,4 @@
 
 
 // + := x -> y -> y|(x|_implicit_additon)
-
-x := 1
+1|+

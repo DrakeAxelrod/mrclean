@@ -1,56 +1,17 @@
-module MrCParser (Expr (..), parseExpr) where 
+module MrCParser (Expr (..), parseExpr) where
 
-import Text.Parsec
-import Text.Parsec.String
-import Text.Parsec.Expr
-import Text.Parsec.Prim (parserFail)
-import Text.Parsec.Char (alphaNum)
-import Text.Parsec.Language (emptyDef)
-import qualified Text.Parsec.Token as Tok
-import Data.Functor.Identity (Identity)
+import           Data.Functor.Identity (Identity)
+import           Text.Parsec           (ParseError, eof, many, noneOf, oneOf,
+                                        parse, (<?>), (<|>))
+import           Text.Parsec.Char      ()
+import           Text.Parsec.Expr      (Assoc (AssocLeft),
+                                        Operator (Infix, Prefix),
+                                        buildExpressionParser)
+import           Text.Parsec.Language  (emptyDef)
+import           Text.Parsec.Prim      ()
+import           Text.Parsec.String    (Parser)
+import qualified Text.Parsec.Token     as Tok
 
-{- ===== Language Explanation =====
-  Functional language that mimics lambda calculus
-  Variables are alphanumerical strings (eg x, x1, my_var)
-  Abstraction (or functions) are written as (x -> M), where x is a bound variable and M is an expressions
-  Applications are written as (N|M) where N is applied to the function M
-  
-  Parenthesis are used to group expressions e.g: (x -> (x|x)) is a valid expression
-  You can assign to variables with the following syntax (x := M), which means that M is assigned to x
-  reserved operators: ->, |, :=, (, ), $, &
-  
-  Examples:
-  assign x to the identity function: x := (x -> x)
-  assign y to the function that takes a function and applies it to itself: y := (f -> (f|f))
-  assign z to the function that takes a function and applies it to itself twice: z := (f -> ((f|f)|f))
-  etc...
-  1 + 2 * 3 = 7
-  1 + (2 * 3) = 7
-  (1 + 2) * 3 = 9
-
-  $ reduces the expression to its beta normal form
-  -> is used to define functions or lambdas (eg: x -> x)
-  | is used to apply functions (eg: (x|x))
-  := is used to assign a value to a variable
-  arithmetic operators: 
-    _implicit_addition: 1 2 = 3
-    _implicit_multiplication: 3 2 = 6
-    _implicit_subtraction: 3 2 = 1
-    _implicit_division: 6 2 = 3
-    _implicit_modulo: 7 2 = 1
-    _implicit_exponentiation: 2 3 = 8
-    _implicit_factorial: 5! = 120
-    _implicit_and: 1 1 = 1
-    _implicit_or: 1 0 = 1
-    _implicit_xor: 1 0 = 1
-    _implicit_not: 1 = 0
-    _implicit_greater_than: 2 1 = 1
-    _implicit_less_than: 1 2 = 1
-    _implicit_greater_than_or_equal_to: 2 2 = 1
-    _implicit_less_than_or_equal_to: 2 2 = 1
-    _implicit_equal_to: 2 2 = 1
-    _implicit_not_equal_to: 2 1 = 1
--}
 
 data Expr = Var String
           | Application Expr Expr
@@ -58,83 +19,72 @@ data Expr = Var String
           | Assign Expr Expr
           deriving (Show, Eq)
 
-{-
-haskellStyle :: LanguageDef st
-haskellStyle = emptyDef
-                { commentStart   = "{-"
-                , commentEnd     = "-}"
-                , commentLine    = "--"
-                , nestedComments = True
-                , identStart     = letter
-                , identLetter    = alphaNum <|> oneOf "_'"
-                , opStart        = opLetter haskellStyle
-                , opLetter       = oneOf ":!#$%&*+./<=>?@\\^|-~"
-                , reservedOpNames= []
-                , reservedNames  = []
-                , caseSensitive  = True
-                }
-
+{- | MrClean Language Definition
+  * Defines all of the language features using the Text.Parsec.Token module.
+  * We use the emptyDef as a base, and overwrite the features we want to change.
 -}
-
-
 mrCleanDef :: Tok.LanguageDef st
 mrCleanDef = emptyDef
-          { Tok.commentStart    = "/*"
-          , Tok.commentEnd      = "*/"
-          , Tok.commentLine     = "//"
-          , Tok.nestedComments  = True
-          , Tok.identStart      = noneOf "\n \t\r\f|()"
-          , Tok.identLetter     = noneOf "\n \t\r\f|()"
-          -- , Tok.opStart         =
-          -- , Tok.opLetter        =
-          -- , Tok.identStart      =  letter
-          -- , Tok.identLetter     = alphaNum <|> oneOf "_'"
-          , Tok.opStart         = oneOf ""
-          , Tok.opLetter        = oneOf ""
-          , Tok.reservedOpNames = ["|" , "->", ":=", "$"]
-          , Tok.reservedNames   = ["|" , "->", ":=", "$"]
-          , Tok.caseSensitive   = False
+          {
+            Tok.commentStart    = "/*"                    -- ^ start of a block comment.
+          , Tok.commentEnd      = "*/"                    -- ^ end of a block comment.
+          , Tok.commentLine     = "//"                    -- ^ line comment.
+          , Tok.nestedComments  = True                    -- ^ the language supports nested block comments.
+          , Tok.identStart      = noneOf "\n \t\r\f|()"   -- ^ don't allow any of these characters to start an identifier.
+          , Tok.identLetter     = noneOf "\n \t\r\f|()"   -- ^ don't allow any of these characters to be part of an identifier.
+          , Tok.opStart         = oneOf ""                -- ^ not used in this language.
+          -- | This parser should accept any legal tail characters of operators.
+          -- Note that this parser should even be defined if the language doesn't
+          -- support user-defined operators, or otherwise the 'reservedOp'
+          -- parser won't work correctly.
+          , Tok.opLetter        = oneOf ""                -- ^ not used in this language.
+          , Tok.reservedOpNames = ["|" , "->", ":=", "$"] -- ^ reserved operators.
+          , Tok.reservedNames   = ["|" , "->", ":=", "$"] -- ^ reserved names.
+          , Tok.caseSensitive   = False                   -- ^ case insensitive.
           }
 
-{-
-emptyDef   :: LanguageDef st
-emptyDef    = LanguageDef
-               { commentStart   = ""
-               , commentEnd     = ""
-               , commentLine    = ""
-               , nestedComments = True
-               , identStart     = letter <|> char '_'
-               , identLetter    = alphaNum <|> oneOf "_'"
-               , opStart        = opLetter emptyDef
-               , opLetter       = oneOf ":!#$%&*+./<=>?@\\^|-~"
-               , reservedOpNames= []
-               , reservedNames  = []
-               , caseSensitive  = True
-               }
--}
--- foo, <-> 
+-- | Generated collection of parsing-functions that adhere to the mrCleanDef.
+-- The function makeTokenParser generates standard
+-- utility parsers that implement the language definition
 lexer :: Tok.TokenParser st
 lexer = Tok.makeTokenParser mrCleanDef
 
+-- | Parser for identifiers (variables, function-names) which asserts
+-- that the identifier does not conflict with the reserved names.
 identifier :: Parser String
-identifier = Tok.identifier lexer 
+identifier = Tok.identifier lexer
 
+-- | @reserved name@ Parser for detecting symbol @name@, asserting that
+-- the symbol is not directly followed by characters conformant to general
+-- identifiers, thus behaving like a reserved keyword.
 reserved :: String -> Parser ()
 reserved = Tok.reserved lexer
--- operator :: Parser String
--- operator = Tok.operator lexer
 
+-- | Similar to @reserved@ exept that it asserts that the symbol is not
+-- followed by characters conformant to regular operators.
 reservedOp :: String -> Parser ()
 reservedOp = Tok.reservedOp lexer
+
+-- | @parens p@ creates a parser that succeeds only if @p@ is parenthesised.
 parens :: Parser a -> Parser a
 parens = Tok.parens lexer
 
+-- | Parser that consumes whitespace
 whiteSpace :: Parser ()
 whiteSpace = Tok.whiteSpace lexer
 
+-- | The full parser, capable of parsing an entire expression.
+-- The function buildExpressionParser performs the job of building
+-- this parser with respect to the structural features and their
+-- precedence order, defined in @table@.
 expr :: Parser Expr
 expr = buildExpressionParser table term <?> "expression"
 
+expressions :: Parser [Expr]
+expressions = many expr
+-- | Table of specific parsers for structural langage features. As these
+-- features behave much like operators in other languages, they are
+-- encoded as operators.
 table :: [[Operator String () Identity Expr]]
 table = [ [Prefix (reservedOp "$"   >> return (Application (Var "reduce")))]
         -- TODO: Actually make this prefix
@@ -147,21 +97,33 @@ table = [ [Prefix (reservedOp "$"   >> return (Application (Var "reduce")))]
         , [Infix  (reservedOp ":="  >> return Assign) AssocLeft]
         ]
 
+-- | Parser for identifiers/variables.
 variable :: Parser Expr
 variable = Var <$> identifier
 
+-- | Simple language terms, which are either entire parenthesised
+-- expressions or of the simples type, identifiers/variables.
 term :: Parser Expr
 term =  parens expr
     <|> variable
     -- <|> Var <$> operator
     <?> "term"
 
+-- | Try parsing the supplied string, returing wether
+-- the parser failed, @Left@, or the parsed expression, @Right@.
 parseExpr :: String -> Either ParseError Expr
 parseExpr = parse (whiteSpace >> expr <* eof) "<stdin>"
 
+parseExpressions :: String -> Either ParseError [Expr]
+parseExpressions = parse (whiteSpace >> expressions <* eof) "<stdin>"
 
--- | parse file project_root/assets/test.mrc
-parseFile :: IO (Either ParseError Expr)
-parseFile = do
-  contents <- readFile "assets/test.mrc"
+-- | Parse a source-file containing a single expression.
+parseFile :: String -> IO (Either ParseError Expr)
+parseFile file = do
+  contents <- readFile file
   return $ parse (whiteSpace >> expr <* eof) "" contents
+
+
+-- | Load an parse a test file "assets/test.mrc"
+testFile :: IO (Either ParseError Expr)
+testFile = parseFile "assets/test.mrc"

@@ -64,18 +64,20 @@ $ is evaluation / reduction / call / invoke
 - [Clean](<https://en.wikipedia.org/wiki/Clean_(programming_language)>)
 - [Graph-Reduction (concept)](https://en.wikipedia.org/wiki/Graph_reduction)
 
-
 # Parsec Study
+
 Parser is Monad => Applicative => Functor
 Also Alternative
 
 How parser combination works in essence
+
 ```haskell
 val1 :: Parser Val1
 val1 = constructorOfVa1 <$> {-chained parsers-}
 ```
 
 An example of parsing `MyType`
+
 ```haskell
 -- (<$>) :: (Functor f) => (a->b) -> f a -> f b
 -- (<*>) :: (Applicative f) => f (a -> b) -> f a -> f b
@@ -110,20 +112,22 @@ p3''' = do
     b' <- p2
     c' <- p3
     return(myConstructor a' b' c')
- ```
+```
 
 `p <?> s` displays error message `s` when `p` fails
+
 ```haskell
 <?> :: Parser a -> String -> Parser a
 ```
-Parsers should follow lexeme structure, meaning they consume *trailing* whitespace
+
+Parsers should follow lexeme structure, meaning they consume _trailing_ whitespace
 
 ```haskell
 lexeme :: Parser a -> Parser a
 lexeme p = p <* spaces
 ```
 
-Top level parser should be the only parser consuming *leading* whitespace, but a general
+Top level parser should be the only parser consuming _leading_ whitespace, but a general
 method is good to have
 
 ```haskell
@@ -132,14 +136,63 @@ leadingWS = spaces *> p
 ```
 
 ## `try` vs `<|>`
+
 ```haskell
 try ::  Parser a -> Parser a
 (<|>) :: (Alternative f) =>  f a -> f a -> f a
 ```
-The `a <|> b` (or *option*) operator tries to apply the first parser `a` and **if** it 
+
+The `a <|> b` (or _option_) operator tries to apply the first parser `a` and **if** it
 fails **without** consuming input, the other parser `b` is used. If `a` were to fail after
 consuming input, the entire expression fails.
 
-`try a` creates a new parser that *if* `a` fails, backtracks the consumed stream and thus
+`try a` creates a new parser that _if_ `a` fails, backtracks the consumed stream and thus
 behaves as if no input was consumed in the case of `<|>`. Usefull for parsers that
 tries to parse a large (context aware?) structure.
+
+## For Autopilot
+
+```haskell
+{- ===== Language Explanation =====
+  Functional language that mimics lambda calculus
+  Variables are alphanumerical strings (eg x, x1, my_var)
+  Abstraction (or functions) are written as (x -> M), where x is a bound variable and M is an expressions
+  Applications are written as (N|M) where N is applied to the function M
+
+  Parenthesis are used to group expressions e.g: (x -> (x|x)) is a valid expression
+  You can assign to variables with the following syntax (x := M), which means that M is assigned to x
+  reserved operators: ->, |, :=, $
+
+  Examples:
+  assign x to the identity function: x := (x -> x)
+  assign y to the function that takes a function and applies it to itself: y := (f -> (f|f))
+  assign z to the function that takes a function and applies it to itself twice: z := (f -> ((f|f)|f))
+  etc...
+  1 + 2 * 3 = 7
+  1 + (2 * 3) = 7
+  (1 + 2) * 3 = 9
+
+  $ reduces the expression to its beta normal form
+  -> is used to define functions or lambdas (eg: x -> x)
+  | is used to apply functions (eg: (x|x))
+  := is used to assign a value to a variable
+  arithmetic operators:
+    _implicit_addition: 1 2 = 3
+    _implicit_multiplication: 3 2 = 6
+    _implicit_subtraction: 3 2 = 1
+    _implicit_division: 6 2 = 3
+    _implicit_modulo: 7 2 = 1
+    _implicit_exponentiation: 2 3 = 8
+    _implicit_factorial: 5! = 120
+    _implicit_and: 1 1 = 1
+    _implicit_or: 1 0 = 1
+    _implicit_xor: 1 0 = 1
+    _implicit_not: 1 = 0
+    _implicit_greater_than: 2 1 = 1
+    _implicit_less_than: 1 2 = 1
+    _implicit_greater_than_or_equal_to: 2 2 = 1
+    _implicit_less_than_or_equal_to: 2 2 = 1
+    _implicit_equal_to: 2 2 = 1
+    _implicit_not_equal_to: 2 1 = 1
+-}
+```
