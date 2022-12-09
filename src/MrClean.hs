@@ -4,7 +4,6 @@ module MrClean where
 import qualified MrCRepl
 import           Options.Applicative
 
-
 data Options = Options
   { optStr  :: String
   , optFile :: FilePath

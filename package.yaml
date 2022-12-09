@@ -1,14 +1,14 @@
-name:                mrclean
-version:             0.1.0.0
-github:              "DrakeAxelrod/mrclean"
-license:             BSD3
-author:              "Drake Axelrod, Hugo Lom"
-maintainer:          "drake@draxel.io, "
-copyright:           "2022 Drake Axelrod, Hugo Lom"
+name: mrclean
+version: 0.1.0.0
+github: "DrakeAxelrod/mrclean"
+license: BSD3
+author: "Drake Axelrod, Hugo Lom"
+maintainer: "drake@draxel.io, "
+copyright: "2022 Drake Axelrod, Hugo Lom"
 
 extra-source-files:
-- README.md
-- CHANGELOG.md
+  - README.md
+  - CHANGELOG.md
 
 # Metadata used when publishing your package
 # synopsis:            Short description of your package
@@ -17,46 +17,48 @@ extra-source-files:
 # To avoid duplicated efforts in documentation and dealing with the
 # complications of embedding Haddock markup inside cabal files, it is
 # common to point users to the README.md file.
-description:         Please see the README on GitHub at <https://github.com/DrakeAxelrod/mrclean#readme>
+description: Please see the README on GitHub at <https://github.com/DrakeAxelrod/mrclean#readme>
 
 dependencies:
-- base >= 4.7 && < 5
-- parsec
-- QuickCheck
-- optparse-applicative
+  - base >= 4.7 && < 5
+  - parsec
+  - QuickCheck
+  - optparse-applicative
+  - hashmap
+# -
 
 ghc-options:
-- -Wall
-- -Wcompat
-- -Widentities
-- -Wincomplete-record-updates
-- -Wincomplete-uni-patterns
-- -Wmissing-export-lists
-- -Wmissing-home-modules
-- -Wpartial-fields
-- -Wredundant-constraints
+  - -Wall
+  - -Wcompat
+  - -Widentities
+  - -Wincomplete-record-updates
+  - -Wincomplete-uni-patterns
+  - -Wmissing-export-lists
+  - -Wmissing-home-modules
+  - -Wpartial-fields
+  - -Wredundant-constraints
 
 library:
   source-dirs: src
 
 executables:
   mrclean:
-    main:                Main.hs
-    source-dirs:         app
+    main: Main.hs
+    source-dirs: app
     ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
     dependencies:
-    - mrclean
+      - mrclean
 
 tests:
   mrclean-test:
-    main:                Spec.hs
-    source-dirs:         test
+    main: Spec.hs
+    source-dirs: test
     ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
     dependencies:
-    - mrclean
+      - mrclean
