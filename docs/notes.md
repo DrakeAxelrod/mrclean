@@ -1,5 +1,7 @@
 # MrClean
+## Abstract State Machine specs
 
+![](./asm.png)
 ## GUI
 
 - (monomer)[https://hackage.haskell.org/package/monomer] - This one looks simplish

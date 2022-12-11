@@ -25,7 +25,7 @@ dependencies:
   - QuickCheck
   - optparse-applicative
   - hashmap
-# -
+  - mtl
 
 ghc-options:
   - -Wall

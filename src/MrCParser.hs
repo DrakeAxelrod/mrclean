@@ -14,7 +14,6 @@ import qualified Text.Parsec.Token     as Tok
 
 
 data Expr = Var String
-          | Number Int
           | Application Expr Expr
           | Lambda Expr Expr
           | Assign Expr Expr
