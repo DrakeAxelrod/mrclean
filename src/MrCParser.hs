@@ -3,7 +3,8 @@ module MrCParser (Expr (..), parseExpr) where
 import           Data.Functor.Identity (Identity)
 import           Text.Parsec           (ParseError, eof, many, noneOf, oneOf,
                                         parse, (<?>), (<|>))
-import           Text.Parsec.Char      ()
+import           Data.Char             (isAlphaNum, isAscii)
+import           Data.Either           (isRight)
 import           Text.Parsec.Expr      (Assoc (AssocLeft),
                                         Operator (Infix, Prefix),
                                         buildExpressionParser)
@@ -12,12 +13,53 @@ import           Text.Parsec.Prim      ()
 import           Text.Parsec.String    (Parser)
 import qualified Text.Parsec.Token     as Tok
 
+import           Test.QuickCheck       (Gen, Arbitrary, arbitrary, sample, listOf1, oneof, sized)
+import           Control.Monad         (liftM, liftM2)
 
 data Expr = Var String
           | Application Expr Expr
           | Lambda Expr Expr
           | Assign Expr Expr
           deriving (Show, Eq)
+
+isValidIdent :: Char -> Bool
+isValidIdent c = isAlphaNum c && isAscii c
+
+validChar :: Gen Char
+validChar = validChar' arbitrary
+  where validChar' gc = do c <- gc
+                           if isValidIdent c then 
+                            return c
+                           else 
+                            validChar' arbitrary
+
+validIdent :: Gen String
+validIdent = listOf1 validChar
+
+genExpr :: Gen Expr
+genExpr = sized genExpr'
+
+instance Arbitrary Expr where
+  arbitrary = genExpr
+
+genExpr' :: Int -> Gen Expr
+genExpr' 0 = liftM Var validIdent
+genExpr' n | n > 0 = oneof [ liftM Var validIdent
+                           , liftM2 Application (liftM Var validIdent) subexpr
+                           , liftM2 Lambda (liftM Var validIdent) subexpr
+                           , liftM2 Assign (liftM Var validIdent) subexpr
+                           ]
+  where subexpr = genExpr' (n `div` 2)
+
+
+prop_parseExprValid :: Expr -> Bool
+prop_parseExprValid = isRight . parseExpr . printExpr
+
+printExpr :: Expr -> String
+printExpr (Var s) = s
+printExpr (Application lhs rhs) = "( " ++ printExpr lhs ++ " | " ++ printExpr rhs ++ " )"
+printExpr (Lambda arg body) = "( " ++ printExpr arg ++ " -> " ++ printExpr body ++ " )"
+printExpr (Assign var body) = "( " ++ printExpr var ++ " := " ++ printExpr body ++ " )"
 
 {- | MrClean Language Definition
   * Defines all of the language features using the Text.Parsec.Token module.
@@ -127,3 +169,5 @@ parseFile file = do
 -- | Load an parse a test file "assets/test.mrc"
 testFile :: IO (Either ParseError Expr)
 testFile = parseFile "assets/test.mrc"
+
+failingParse = Application (Var "FL3q[!v]K<") (Application (Var "$+\\9A&M*~") (Lambda (Var "*z~") (Lambda (Var "/*>?") (Var "m`3%#{W"))))
