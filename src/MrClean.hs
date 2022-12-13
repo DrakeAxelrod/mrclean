@@ -44,7 +44,7 @@ cli = do
       )
 
 run :: Options -> IO ()
-run (Options "" "" False) = MrCRepl.replEntry
+run (Options "" "" False) = MrCRepl.repl --Entry
 run (Options s "" False)  = putStr s
 run (Options "" f False)  = putStr f
 run (Options _ _ True)    = putStr $ unlines [

@@ -91,8 +91,8 @@ type MachineState = Either (Either String Machine) Machine -- Result<Machine, St
 
 type Result = Either String Expr
 
-initMachine :: Expr -> MachineState
-initMachine e = Right $ Machine empty e []
+initMachine :: Expr -> Machine
+initMachine e = Machine empty e []
 
 -- T, (e p), S ==> T, e, p : S
 -- T, y -> e, p : S ==> T e[p/y], S
@@ -119,9 +119,10 @@ ruleSet (Machine heap control stack) =
 
 
 ruleSetImplicit :: ImplicitFun -> Expr -> VarStack -> VarHeap -> MachineState
-ruleSetImplicit f p s h = fmap if_reduced ms
+ruleSetImplicit (ImplicitFun f) p s h = ms' ms
     where ms = reduceFull $ Machine h p []
-          if_reduced (Machine h' p' _) = either (Left . Left) (\e -> Right $ Machine h' e s) (f p')
+          ms' (Left (Right (Machine h' p' _))) = either (Left . Left) (\e -> Right $ Machine h' e s) (f p')
+          ms' x = x
 
 reduceFull :: Machine -> MachineState
 reduceFull m = reduceFull' $ ruleSet m
@@ -139,11 +140,10 @@ substitute s e' (Assign x e) = Assign x (substitute s e' e)
 substitute _ _ e = e
 
 -- | Reduce the machine state until it is in a final state
+reduce' :: MachineState -> Either String Expr
+reduce' (Right m) = reduce' (ruleSet m)
+reduce' (Left (Left s)) = Left s
+reduce' (Left (Right (Machine _ e _))) = Right e
 
-reduce_implicit :: MachineState -> MachineState
-reduce_implicit (Right m) = reduce (ruleSet $ Right m)
-reduce_implicit s = s
-
-reduce :: MachineState -> String
-reduce (Right m) = reduce (ruleSet $ Right m)
-reduce (Left s) = s
+reduce :: Machine -> Either String Expr
+reduce = reduce' . Right
