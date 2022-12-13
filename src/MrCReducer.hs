@@ -1,6 +1,6 @@
 module MrCReducer where
 
-import           Data.HashMap (Map, empty, delete)
+import           Data.HashMap (Map, empty, delete, insert)
 import qualified Data.HashMap as HashMap
 import qualified MrCParser
 import           Text.Read    (readMaybe)
@@ -8,16 +8,43 @@ import           Control.Monad.State (State)
 import           Control.Applicative (liftA2, (<|>))
 
 data Expr = Var String
-          | Number Int
+          | Number Double
           | Application Expr Expr
           | Lambda String Expr
           | Assign String Expr
-          deriving (Show, Eq)
+          | Implicit ImplicitFun
+          deriving (Show)
+
+newtype ImplicitFun = ImplicitFun (Expr -> Either String Expr)
+
+instance Show ImplicitFun where
+    show _ = "ImplicitFunction"
+
+data ImplicitFunS = ImplicitFunS ImplicitFun String -- 6
+
+implicit_op :: (Double -> Double -> Double) -> String -> ImplicitFunS
+implicit_op op n = ImplicitFunS (ImplicitFun f) n
+    where f  (Number x)             = Right $ Implicit $ ImplicitFun $ f' x
+          f  _                      = Left e
+          f' x (Number y)  = Right $ Number (x `op` y)
+          f' _ _                    = Left e
+          e                         = "invalid argument type for implicit function '" ++ n ++ "'"
+
+implicit_operators :: [ImplicitFunS]
+implicit_operators = [ implicit_op (+) "_implicit_add"
+                     , implicit_op (-) "_implicit_sub"
+                     , implicit_op (*) "_implicit_mul"
+                     , implicit_op (/) "_implicit_div"
+                     ]
+
+implicit_map :: Map String ImplicitFun
+implicit_map = foldl (\ m (ImplicitFunS f s) -> insert s f m) empty implicit_operators
 
 
 -- | Convert the parser expression-tree into the reduction expression-tree
 convertExpr :: MrCParser.Expr -> Either String Expr
-convertExpr (MrCParser.Var s) = Right $ maybe (Var s) Number (readMaybe s)
+convertExpr (MrCParser.Var s) = Right $ maybe v Number (readMaybe s)
+    where v = maybe (Var s) Implicit $ HashMap.lookup s implicit_map
 convertExpr (MrCParser.Application lhs rhs) = (liftA2 Application) (convertExpr lhs) (convertExpr rhs)
 convertExpr (MrCParser.Lambda (MrCParser.Var n) rhs) = Lambda n <$> convertExpr rhs
 convertExpr (MrCParser.Lambda e _) = Left ("Invalid variable expression in lambda `" ++ show e ++ "`")
@@ -60,13 +87,9 @@ data Machine = Machine VarHeap Expr [Either String Expr] deriving (Show)
 
 -- | The machine state holds the @Machine@ variables or
 -- error info
-type MachineState = Either String Machine -- Result<Machine, String>
+type MachineState = Either (Either String Machine) Machine -- Result<Machine, String>
 
 type Result = Either String Expr
-
-cloneExpr :: MachineState -> Either String Expr 
-cloneExpr (Left s) = Left s
-cloneExpr (Right (Machine _ c _)) = Right c
 
 initMachine :: Expr -> MachineState
 initMachine e = Right $ Machine empty e []
@@ -76,30 +99,35 @@ initMachine e = Right $ Machine empty e []
 -- T[p |-> e], p, S ==> T, e, #p : S
 -- T, y -> e, #p : S ==> T[p |-> y -> e], y -> e, S
 
--- app1 :: Machine -> MachineState
--- app1 (Machine h (Application p e) s) = return $ Machine h e (Right p : s)
--- app1 (Machine _ c _) = Left "app1 not applicable to " ++ show c
--- 
--- app2 :: Machine -> MachineState
--- app1 (Machine h (Lambda y e) (Right p : s)) = return $ Machine h (substitute y p e) s
--- app1 (Machine _ c _) = Left "app1 not applicable to " ++ show c
+-- 3 | ((expr) | (+))
+-- (expr) | (x -> y -> x+y) [3]
+-- (x -> y -> x+y) [(expr), 3]
+-- (y -> (expr)+y) [3]
+-- (expr)+3 :=
 
-ruleSet :: MachineState -> MachineState
-ruleSet (Left s) = Left s
-ruleSet (Right (Machine heap control stack)) = 
+ruleSet :: Machine -> MachineState
+ruleSet (Machine heap control stack) = 
     case (control, stack) of
         (Application p e, _) -> Right $ Machine heap e (Right p : stack)
         (Lambda y e, Right p : s) -> Right $ Machine heap (substitute y p e) s
-        (Var p, _) -> let d   = (Left ("unknown variable " ++ p)) 
+        (Implicit f, Right p : s) -> ruleSetImplicit f p s heap
+        (Var p, _) -> let d   = (Left $ Left ("unknown variable " ++ p)) 
                           f e = Machine (delete p heap) e (Left p : stack) 
                       in maybe d (Right . f) $ HashMap.lookup p heap
-        _ -> Left "Not Implemented"
+        (s, []) -> Left $ Right $ Machine heap control stack
+        (s, a) -> Left $ Left $ "No Rules Apply " ++ show s ++ " " ++ show a
 
-traverseLeafs :: (Expr -> Expr) -> Expr -> Expr
-traverseLeafs f (Application l r) = Application (traverseLeafs f l) (traverseLeafs f r)
-traverseLeafs f (Lambda a b) = Lambda a (traverseLeafs f b)
-traverseLeafs f (Assign x e) = Assign x (traverseLeafs f e)
-traverseLeafs f e = f e
+
+ruleSetImplicit :: ImplicitFun -> Expr -> VarStack -> VarHeap -> MachineState
+ruleSetImplicit f p s h = fmap if_reduced ms
+    where ms = reduceFull $ Machine h p []
+          if_reduced (Machine h' p' _) = either (Left . Left) (\e -> Right $ Machine h' e s) (f p')
+
+reduceFull :: Machine -> MachineState
+reduceFull m = reduceFull' $ ruleSet m
+    where reduceFull' (Right m') = reduceFull m'
+          reduceFull' ms         = ms
+
 
 substitute :: String -> Expr -> Expr -> Expr
 substitute s e' (Var x) | x == s = e'
@@ -110,10 +138,12 @@ substitute s e' (Application e1 e2) = Application (substitute s e' e1) (substitu
 substitute s e' (Assign x e) = Assign x (substitute s e' e)
 substitute _ _ e = e
 
-validApplication :: Expr -> Bool
-validApplication (Application (Lambda _ _) _) = True
-validApplication _                            = False
+-- | Reduce the machine state until it is in a final state
 
--- | The example function  (1 | (x -> x | y))
-example :: Expr
-example = Application (Number 1) (Lambda "x" (Application (Var "x") (Var "y")))
+reduce_implicit :: MachineState -> MachineState
+reduce_implicit (Right m) = reduce (ruleSet $ Right m)
+reduce_implicit s = s
+
+reduce :: MachineState -> String
+reduce (Right m) = reduce (ruleSet $ Right m)
+reduce (Left s) = s

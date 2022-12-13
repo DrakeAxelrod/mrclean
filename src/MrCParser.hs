@@ -133,7 +133,7 @@ table = [ [Prefix (reservedOp "$"   >> return (Application (Var "reduce")))]
         -- , [Prefix (do e <- variable
         --               return $ \e' -> Application e' e)]
         , [Infix  (do e <- variable
-                      return $ \e' e'' -> Application (Application e' e) e'') AssocLeft]
+                      return $ \e' e'' -> Application e'' (Application e' e)) AssocLeft]
         , [Infix  (reservedOp "|"   >> return Application) AssocLeft]
         , [Infix  (reservedOp "->"  >> return Lambda) AssocLeft]
         , [Infix  (reservedOp ":="  >> return Assign) AssocLeft]
@@ -169,5 +169,3 @@ parseFile file = do
 -- | Load an parse a test file "assets/test.mrc"
 testFile :: IO (Either ParseError Expr)
 testFile = parseFile "assets/test.mrc"
-
-failingParse = Application (Var "FL3q[!v]K<") (Application (Var "$+\\9A&M*~") (Lambda (Var "*z~") (Lambda (Var "/*>?") (Var "m`3%#{W"))))
