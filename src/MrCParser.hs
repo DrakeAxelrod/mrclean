@@ -1,4 +1,9 @@
-module MrCParser (Expr (..), parseExpr, parseExpressions, parseFile) where
+{- Lab 4
+   Date: 2022-12-14
+   Authors: Hugo Lom, Drake Axelrod
+   Lab group: 68
+ -}
+module MrCParser (Expr (..), parseExpr, parseExpressions, parseFile, printExpr) where
 
 import           Data.Functor.Identity (Identity)
 import           Text.Parsec           (ParseError, eof, noneOf, oneOf,
@@ -6,7 +11,7 @@ import           Text.Parsec           (ParseError, eof, noneOf, oneOf,
 import           Data.Char             (isAlphaNum, isAscii)
 import           Data.Either           (isRight)
 import           Text.Parsec.Expr      (Assoc (AssocLeft, AssocRight),
-                                        Operator (Infix, Prefix),
+                                        Operator (Infix),
                                         buildExpressionParser)
 import           Text.Parsec.Language  (emptyDef)
 import           Text.Parsec.Prim      ()
@@ -25,11 +30,11 @@ data Expr = Var String
           | Assign Expr Expr
           deriving (Show, Eq)
 
--- | check if the given character is a valid identifier character
+-- | Check if the given character is a valid identifier character
 isValidIdent :: Char -> Bool
 isValidIdent c = isAlphaNum c && isAscii c
 
--- | check if the given character is a valid identifier character
+-- | Generate a valid identifier character
 validChar :: Gen Char
 validChar = validChar' arbitrary
   where validChar' gc = do c <- gc
@@ -38,23 +43,24 @@ validChar = validChar' arbitrary
                            else 
                             validChar' arbitrary
 
--- | check if the given string is a valid identifier
+-- | Generate a valid identifier
 validIdent :: Gen String
 validIdent = listOf1 validChar
 
--- | genExpr generates an arbitrary expression.
+-- | Generate an arbitrary expression, with a bounded depth
 genExpr :: Gen Expr
 genExpr = sized genExpr'
 
--- | arbitrary instance for Expr
+-- | Arbitrary instance of expression
 instance Arbitrary Expr where
   arbitrary = genExpr
 
--- | genExpr' generates an expression of the given size.
--- This is used to generate arbitrary expressions.
+-- | Generate a random expression keeping track
+-- of the recursive depth and terminating once the
+-- depth is reached.
 genExpr' :: Int -> Gen Expr
-genExpr' n | 0 >= n = fmap Var validIdent
-           | n > 0  = oneof [ fmap Var validIdent
+genExpr' n | 0 >= n     = fmap Var validIdent
+           | otherwise  = oneof [ fmap Var validIdent
                             , liftM2 Application (fmap Var validIdent) subexpr
                             , liftM2 Lambda (fmap Var validIdent) subexpr
                             , liftM2 Assign (fmap Var validIdent) subexpr
@@ -65,31 +71,30 @@ genExpr' n | 0 >= n = fmap Var validIdent
 prop_parseExprValid :: Expr -> Bool
 prop_parseExprValid = isRight . parseExpr . printExpr
 
--- | printExpr takes an Expr and returns a String representation of it.
+-- | The text representation for an expression tree.
 printExpr :: Expr -> String
 printExpr (Var s) = s
 printExpr (Application lhs rhs) = "( " ++ printExpr lhs ++ " | " ++ printExpr rhs ++ " )"
 printExpr (Lambda arg body) = "( " ++ printExpr arg ++ " -> " ++ printExpr body ++ " )"
 printExpr (Assign var body) = "( " ++ printExpr var ++ " := " ++ printExpr body ++ " )"
 
-{- | MrClean Language Definition
-  * Defines all of the language features using the Text.Parsec.Token module.
-  * We use the emptyDef as a base, and overwrite the features we want to change.
--}
+-- | MrClean Language Definition
+--   * Defines all of the language features using the Text.Parsec.Token module.
+--   * We use the emptyDef as a base, and overwrite the features we want to change.
 mrCleanDef :: Tok.LanguageDef st
 mrCleanDef = emptyDef
           {
-            Tok.commentStart    = "/*"                    -- ^ start of a block comment.
-          , Tok.commentEnd      = "*/"                    -- ^ end of a block comment.
-          , Tok.commentLine     = "//"                    -- ^ line comment.
-          , Tok.nestedComments  = True                    -- ^ the language supports nested block comments.
+            Tok.commentStart    = "/*"                     -- ^ start of a block comment.
+          , Tok.commentEnd      = "*/"                     -- ^ end of a block comment.
+          , Tok.commentLine     = "//"                     -- ^ line comment.
+          , Tok.nestedComments  = True                     -- ^ the language supports nested block comments.
           , Tok.identStart      = noneOf "\n \t\r\f|();"   -- ^ don't allow any of these characters to start an identifier.
           , Tok.identLetter     = noneOf "\n \t\r\f|();"   -- ^ don't allow any of these characters to be part of an identifier.
-          , Tok.opStart         = oneOf ""                -- ^ not used in this language.
-          , Tok.opLetter        = oneOf ""                -- ^ not used in this language.
-          , Tok.reservedOpNames = ["|" , "->", ":=", "$"] -- ^ reserved operators.
-          , Tok.reservedNames   = ["|" , "->", ":=", "$"] -- ^ reserved names.
-          , Tok.caseSensitive   = False                   -- ^ case insensitive.
+          , Tok.opStart         = oneOf ""                 -- ^ not used in this language.
+          , Tok.opLetter        = oneOf ""                 -- ^ not used in this language.
+          , Tok.reservedOpNames = ["|" , "->", ":="]  -- ^ reserved operators.
+          , Tok.reservedNames   = ["|" , "->", ":="]  -- ^ reserved names.
+          , Tok.caseSensitive   = False                    -- ^ case insensitive.
           }
 
 -- | Generated collection of parsing-functions that adhere to the mrCleanDef.
@@ -103,11 +108,6 @@ lexer = Tok.makeTokenParser mrCleanDef
 identifier :: Parser String
 identifier = Tok.identifier lexer
 
--- | @reserved name@ Parser for detecting symbol @name@, asserting that
--- the symbol is not directly followed by characters conformant to general
--- identifiers, thus behaving like a reserved keyword.
-reserved :: String -> Parser ()
-reserved = Tok.reserved lexer
 
 -- | Similar to @reserved@ exept that it asserts that the symbol is not
 -- followed by characters conformant to regular operators.
@@ -129,18 +129,15 @@ whiteSpace = Tok.whiteSpace lexer
 expr :: Parser Expr
 expr = buildExpressionParser table term <?> "expression"
 
--- | parse ; separated expressions
+-- | Parse many expressions seperated by ";"
 expressions :: Parser [Expr]
 expressions = endBy expr (Tok.lexeme lexer $ char ';')
+
 -- | Table of specific parsers for structural langage features. As these
 -- features behave much like operators in other languages, they are
 -- encoded as operators.
 table :: [[Operator String () Identity Expr]]
-table = [ [Prefix (reservedOp "$"   >> return (Application (Var "reduce")))]
-        -- TODO: Actually make this prefix
-        -- , [Prefix (do e <- variable
-        --               return $ \e' -> Application e' e)]
-        , [Infix  (do e <- variable
+table = [ [Infix  (do e <- variable
                       return $ \e' e'' -> Application e'' (Application e' e)) AssocLeft]
         , [Infix  (reservedOp "|"   >> return Application) AssocLeft]
         , [Infix  (reservedOp "->"  >> return Lambda) AssocRight]
@@ -169,7 +166,7 @@ parseExpr = parse (whiteSpace >> expr <* eof) "<stdin>"
 parseExpressions :: String -> Either ParseError [Expr]
 parseExpressions = parse (whiteSpace >> expressions <* eof) "<stdin>"
 
--- | Parse a source-file containing a single expression.
+-- | Parse a source-file containing expressions seperated by ";".
 parseFile :: String -> IO (Either ParseError [Expr])
 parseFile file = do
   contents <- readFile file

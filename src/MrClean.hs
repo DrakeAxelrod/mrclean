@@ -1,3 +1,8 @@
+{- Lab 4
+   Date: 2022-12-14
+   Authors: Hugo Lom, Drake Axelrod
+   Lab group: 68
+ -}
 module MrClean (cli) where
 
 import           MrCRepl (repl, evaluation)
@@ -27,7 +32,8 @@ options = Options
          <> help "Print the authors of this project")
 
 
--- | The cli
+-- | Entry point to the CLI, displays the banner
+-- and gathers the command line arguments.
 cli :: IO ()
 cli = do
   mrcBanner
@@ -39,7 +45,8 @@ cli = do
       <> header "The cli for MrClean"
       )
 
--- | Runner for the cli
+-- | Options-parser, runs the corresponding function
+-- to the given option.
 run :: Options -> IO ()
 run (Options "" "" False) = MrCRepl.repl --Entry
 run (Options s "" False)  = putStrLn $ MrCRepl.evaluation s

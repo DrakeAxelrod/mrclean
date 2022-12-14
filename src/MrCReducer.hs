@@ -1,3 +1,8 @@
+{- Lab 4
+   Date: 2022-12-14
+   Authors: Hugo Lom, Drake Axelrod
+   Lab group: 68
+ -}
 module MrCReducer where
 
 import           Data.HashMap (Map, empty, delete, insert)
@@ -6,7 +11,7 @@ import qualified MrCParser
 import           Text.Read    (readMaybe)
 import           Control.Applicative (liftA2)
 
--- | The expressions data type
+-- | The expressions tree is represented
 data Expr = Var String
           | Number Double
           | Application Expr Expr
@@ -15,22 +20,25 @@ data Expr = Var String
           | Implicit ImplicitFun
           deriving (Show)
 
--- | The implicit function data type
+-- | The implicit function data type, allowed to fail
+-- via the @Either@ data type. The only interface to any
+-- Haskell functions.
 newtype ImplicitFun = ImplicitFun (Expr -> Either String Expr)
 
--- | The implicit function show
+-- | An explicit implementation of the @Show@ class with a constant
+-- representation such that the @Expr@ tree can be displayed.
 instance Show ImplicitFun where
     show _ = "ImplicitFunction"
 
--- | The implicit function data structure
-data ImplicitFunS = ImplicitFunS ImplicitFun String -- 6
+-- | A helper data structure for storing the implicit function implementation
+data ImplicitFunS = ImplicitFunS ImplicitFun String
 
--- | The implicit operators wrapper
+-- | Helper function for creating named binary, numeric, implicit functions.
 implicitOp :: (Double -> Double -> Double) -> String -> ImplicitFunS
 implicitOp op n = ImplicitFunS (ImplicitFun f) n
     where f  (Number x)             = Right $ Implicit $ ImplicitFun $ f' x
           f  _                      = Left e
-          f' x (Number y)  = Right $ Number (x `op` y)
+          f' x (Number y)           = Right $ Number (x `op` y)
           f' _ _                    = Left e
           e                         = "Runtime Error: Invalid argument '" ++ n ++ "'"
 
@@ -42,7 +50,7 @@ implicitOperators = [ implicitOp (+) "_implicit_add"
                     , implicitOp (/) "_implicit_div"
                     ]
 
--- | mapping of implicit operators
+-- | Mapping of implicit operators to their names
 implicitMap :: Map String ImplicitFun
 implicitMap = foldl (\ m (ImplicitFunS f s) -> insert s f m) empty implicitOperators
 
@@ -68,6 +76,17 @@ convertExpr (MrCParser.Assign e _) =
             "`"
          )
 
+-- | Convert the reducer expression-tree back into the parser expression-tree
+convertExprBack :: Expr -> MrCParser.Expr
+convertExprBack (Var s) = MrCParser.Var s
+convertExprBack (Number n) = MrCParser.Var $ show n
+convertExprBack (Application lhs rhs) =
+    MrCParser.Application (convertExprBack lhs) (convertExprBack rhs)
+convertExprBack (Lambda n rhs) = 
+    MrCParser.Lambda (MrCParser.Var n) (convertExprBack rhs)
+convertExprBack (Assign n rhs) = 
+    MrCParser.Assign (MrCParser.Var n) (convertExprBack rhs)
+convertExprBack (Implicit _) = MrCParser.Var "ImplicitFun"
 
 -- | The heap holding named references to expressions
 type VarHeap = Map String Expr
@@ -85,17 +104,9 @@ type VarStack = [StackItem]
 data Machine = Machine VarHeap Expr [Either String Expr] 
     deriving (Show)
 
--- | The machine state holds the @Machine@ variables or
--- error info
+-- | The machine state represents either an active @Machine@
+-- or either a successfull reduction or the error message.
 type MachineState = Either (Either String Machine) Machine
-
--- | The result of a reduction
-type Result = Either String Expr
-
--- | The initial machine state
-initMachine :: Expr -> Machine
-initMachine e = Machine empty e []
-
 
 -- | Rule Set for reducing the machine state, as described in 
 -- @Deriving a lazy abstract machine@.
@@ -120,12 +131,6 @@ ruleSetImplicit (ImplicitFun f) p s h = ms' ms
           ms' (Left (Right (Machine h' p' _))) = either (Left . Left) (\e -> Right $ Machine h' e s) (f p')
           ms' x = x
 
--- | Reduce the machine state until it is in a final state
-reduceFull :: Machine -> MachineState
-reduceFull m = reduceFull' $ ruleSet m
-    where reduceFull' (Right m') = reduceFull m'
-          reduceFull' ms         = ms
-
 -- | Substitute the expression @e'@ for the variable @s@ in the expression @e@
 substitute :: String -> Expr -> Expr -> Expr
 substitute s e' (Var x) | x == s = e'
@@ -137,16 +142,13 @@ substitute s e' (Assign x e) = Assign x (substitute s e' e)
 substitute _ _ e = e
 
 -- | Reduce the machine state until it is in a final state
-reduce' :: MachineState -> Either String Expr
-reduce' (Right m) = reduce' (ruleSet m)
-reduce' (Left (Left s)) = Left s
-reduce' (Left (Right (Machine _ e _))) = Right e
+reduceFull :: Machine -> MachineState
+reduceFull m = reduceFull' $ ruleSet m
+    where reduceFull' (Right m') = reduceFull m'
+          reduceFull' ms         = ms
 
--- | Reduce the machine
-reduce :: Machine -> Either String Expr
-reduce = reduce' . Right
-
--- | reduce many expressions helper
+-- | Helper function for @runMany@, manages the list of remaining expressions,
+-- the result of the most recent evaluation and the heap. 
 runMany' :: VarHeap -> [Expr] -> (MachineState, VarHeap, [Expr])
 runMany' h [e] = (reduceFull $ Machine h e [], empty, [])
 runMany' h (e : r) = f $ reduceFull $ Machine h e []
@@ -154,7 +156,8 @@ runMany' h (e : r) = f $ reduceFull $ Machine h e []
           f m = (m, empty, [])
 runMany' _ [] = (Left $ Left "Runtime Error: No expression to reduce", empty, [])
 
--- | Reduce many expressions
+-- | A statefull reduction of many expressions. The heap is maintained throughout
+-- the many expression evaluations.
 runMany :: [Expr] -> MachineState
 runMany es = f $ runMany' empty es
     where f (m, _, _) = m

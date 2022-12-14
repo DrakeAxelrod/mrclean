@@ -1,19 +1,19 @@
-
+-- DEPRECATED
 import MrCParser
 
 import Test.QuickCheck
 
-
+-- | 
 statements :: [(String, Expr, Bool)]
 statements = [
-  ("x := y", Assign Var "x" Var "y", True),
+  ("x := y", Assign (Var "x") (Var "y"), True),
   ("x -> x", Lambda (Var "x") (Var "x"), True),
   ("x|y", Application (Var "x") (Var "y"), True),
   ("v", Var "v", True),
   ("x := (x -> x)", Assign (Var "x") (Lambda (Var "x") (Var "x")), True),
   ("y := (f -> (f|f))", Assign (Var "y") (Lambda (Var "f") (Application (Var "f") (Var "f"))), True),
   ("z := (f -> ((f|f)|f))", Assign (Var "z") (Lambda (Var "f") (Application (Application (Var "f") (Var "f")) (Var "f"))), True),
-  ("1 + 2", Application (Application (Var "1") (Var "+")) (Var "2"), True),
+  ("1 + 2", Application (Var "2") (Application (Var "1") (Var "+")), True),
   ("1 + 2 * 3 = 7", Application (Application (Application (Application (Application (Application (Var "1") (Var "+")) (Var "2")) (Var "*")) (Var "3")) (Var "=")) (Var "7"), True),
   ("(1 + 2) * 3 = 9", Application (Application (Application (Application (Application (Application (Var "1") (Var "+")) (Var "2")) (Var "*")) (Var "3")) (Var "=")) (Var "9"), True),
   ("1 + 2 * 3", Application (Application (Application (Application (Var "1") (Var "+")) (Var "2")) (Var "*")) (Var "3"), True),
@@ -29,8 +29,6 @@ testParseExpr s e = case parseExpr s of
   Left _ -> False
   Right e' -> e == e'
 
-prop_parseExpr :: String -> Expr -> Bool
-prop_parseExpr = testParseExpr
 
 testAllStatements :: [(String, Expr, Bool)] -> Bool
 testAllStatements [] = True
@@ -38,42 +36,6 @@ testAllStatements ((s, e, b):xs) = testParseExpr s e == b && testAllStatements x
 
 prop_allStatements :: Bool
 prop_allStatements = testAllStatements statements
-
-testAssignment :: String -> Bool
-testAssignment s = case parseExpr s of
-  Left _ -> False
-  Right (Assign _ _) -> True
-  Right _ -> False
-
-prop_assignment :: String -> Bool
-prop_assignment = testAssignment
-
-testLambda :: String -> Bool
-testLambda s = case parseExpr s of
-  Left _ -> False
-  Right (Lambda _ _) -> True
-  Right _ -> False
-
-prop_lambda :: String -> Bool
-prop_lambda = testLambda
-
-testApplication :: String -> Bool
-testApplication s = case parseExpr s of
-  Left _ -> False
-  Right (Application _ _) -> True
-  Right _ -> False
-
-prop_application :: String -> Bool
-prop_application = testApplication
-
-testVariable :: String -> Bool
-testVariable s = case parseExpr s of
-  Left _ -> False
-  Right (Var _) -> True
-  Right _ -> False
-
-prop_variable :: String -> Bool
-prop_variable = testVariable
 
 main :: IO ()
 main = do

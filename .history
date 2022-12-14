@@ -1,3 +1,5 @@
+1 _implicit_add 2;
+1 _implicit_add 2
 :quit
 :help
 :clear
@@ -96,5 +98,3 @@ l
 x := x -> x
 x\ :=\ x\ ->\ x
 :clear
-clear
-1 _implicit_add 2
