@@ -7,6 +7,7 @@ import           Text.Read    (readMaybe)
 import           Control.Monad.State (State)
 import           Control.Applicative (liftA2, (<|>))
 
+-- | The expressions data type
 data Expr = Var String
           | Number Double
           | Application Expr Expr
@@ -15,59 +16,58 @@ data Expr = Var String
           | Implicit ImplicitFun
           deriving (Show)
 
+-- | The implicit function data type
 newtype ImplicitFun = ImplicitFun (Expr -> Either String Expr)
 
+-- | The implicit function show
 instance Show ImplicitFun where
     show _ = "ImplicitFunction"
 
+-- | The implicit function data structure
 data ImplicitFunS = ImplicitFunS ImplicitFun String -- 6
 
-implicit_op :: (Double -> Double -> Double) -> String -> ImplicitFunS
-implicit_op op n = ImplicitFunS (ImplicitFun f) n
+-- | The implicit operators wrapper
+implicitOp :: (Double -> Double -> Double) -> String -> ImplicitFunS
+implicitOp op n = ImplicitFunS (ImplicitFun f) n
     where f  (Number x)             = Right $ Implicit $ ImplicitFun $ f' x
           f  _                      = Left e
           f' x (Number y)  = Right $ Number (x `op` y)
           f' _ _                    = Left e
-          e                         = "invalid argument type for implicit function '" ++ n ++ "'"
+          e                         = "Runtime Error: Invalid argument '" ++ n ++ "'"
 
-implicit_operators :: [ImplicitFunS]
-implicit_operators = [ implicit_op (+) "_implicit_add"
-                     , implicit_op (-) "_implicit_sub"
-                     , implicit_op (*) "_implicit_mul"
-                     , implicit_op (/) "_implicit_div"
-                     ]
+-- | The implicit operators definitions
+implicitOperators :: [ImplicitFunS]
+implicitOperators = [ implicitOp (+) "_implicit_add"
+                    , implicitOp (-) "_implicit_sub"
+                    , implicitOp (*) "_implicit_mul"
+                    , implicitOp (/) "_implicit_div"
+                    ]
 
-implicit_map :: Map String ImplicitFun
-implicit_map = foldl (\ m (ImplicitFunS f s) -> insert s f m) empty implicit_operators
+-- | mapping of implicit operators
+implicitMap :: Map String ImplicitFun
+implicitMap = foldl (\ m (ImplicitFunS f s) -> insert s f m) empty implicitOperators
 
 
 -- | Convert the parser expression-tree into the reduction expression-tree
 convertExpr :: MrCParser.Expr -> Either String Expr
 convertExpr (MrCParser.Var s) = Right $ maybe v Number (readMaybe s)
-    where v = maybe (Var s) Implicit $ HashMap.lookup s implicit_map
-convertExpr (MrCParser.Application lhs rhs) = (liftA2 Application) (convertExpr lhs) (convertExpr rhs)
-convertExpr (MrCParser.Lambda (MrCParser.Var n) rhs) = Lambda n <$> convertExpr rhs
-convertExpr (MrCParser.Lambda e _) = Left ("Invalid variable expression in lambda `" ++ show e ++ "`")
-convertExpr (MrCParser.Assign (MrCParser.Var n) rhs) = Assign n <$> convertExpr rhs
-convertExpr (MrCParser.Assign e _) = Left ("Invalid variable expression in assignment `" ++ show e ++ "`")
-
-
--- | The state of the machine is the heap, the control expression, and the stack
--- Rules (T is the heap, S is the stack. i : S means that the top item in the stack is i, T[p |-> e] means that there exists a binding between variable p to expression e in the heap)
--- #p is an indication that the control value should be bound to p in the heap
--- e[p/y] means substitute y with p in expression e
--- state ==> new state
--- T, (e p), S ==> T, e, p : S
--- T, y -> e, p : S ==> T e[p/y], S
--- T[p |-> e], p, S ==> T, e, #p : S
--- T, y -> e, #p : S ==> T[p |-> y -> e], y -> e, S
--- im pretty sure control is the switch
--- newtype State s a = State { runState :: s -> (a, s) } if this is true, then we should use the (VarHeap, Expr, VarStack) ie State (VarHeap, Expr, VarStack) (Expr)
--- mrcState :: State (VarHeap, Expr, VarStack) Expr -- i think the State s a is 
--- mrcState = do
---     (heap, control, stack) <- get
---     case control of
---         return control -- to be implemented
+    where v = maybe (Var s) Implicit $ HashMap.lookup s implicitMap
+convertExpr (MrCParser.Application lhs rhs) = 
+    liftA2 Application (convertExpr lhs) (convertExpr rhs)
+convertExpr (MrCParser.Lambda (MrCParser.Var n) rhs) = 
+    Lambda n <$> convertExpr rhs
+convertExpr (MrCParser.Lambda e _) = 
+    Left ( "Conversion Error: Invalid variable expression in lambda `" ++ 
+           show e ++ 
+           "`"
+         )
+convertExpr (MrCParser.Assign (MrCParser.Var n) rhs) = 
+    Assign n <$> convertExpr rhs
+convertExpr (MrCParser.Assign e _) = 
+    Left ( "Conversion Error: Invalid variable expression in assignment `" ++ 
+            show e ++ 
+            "`"
+         )
 
 
 -- | The heap holding named references to expressions
@@ -83,71 +83,51 @@ type VarStack = [StackItem]
 
 -- | The machine is the @VarHeap@, the control-expression and
 -- the execution stack
-data Machine = Machine VarHeap Expr [Either String Expr] deriving (Show)
+data Machine = Machine VarHeap Expr [Either String Expr] 
+    deriving (Show)
 
 -- | The machine state holds the @Machine@ variables or
 -- error info
-type MachineState = Either (Either String Machine) Machine -- Result<Machine, String>
+type MachineState = Either (Either String Machine) Machine
 
+-- | The result of a reduction
 type Result = Either String Expr
 
+-- | The initial machine state
 initMachine :: Expr -> Machine
 initMachine e = Machine empty e []
 
--- T, (e p), S ==> T, e, p : S
--- T, y -> e, p : S ==> T e[p/y], S
--- T[p |-> e], p, S ==> T, e, #p : S
--- T, y -> e, #p : S ==> T[p |-> y -> e], y -> e, S
 
--- 3 | ((expr) | (+))
--- (expr) | (x -> y -> x+y) [3]
--- (x -> y -> x+y) [(expr), 3]
--- (y -> (expr)+y) [3]
--- (expr)+3 :=
-
-
--- handleApplication :: VarHeap -> Expr -> Expr -> VarStack -> MachineState
--- handleApplication heap e p s = Right $ Machine heap e (Right p : s)
--- 
--- handleLambda :: String -> Expr -> Expr -> VarStack -> MachineState
--- handleLambda y e p s = Right $ Machine heap (substitute y p e) s
---     where heap = case s of
---             Left n : _ -> insert n (Lambda y e) empty
---             _ -> empty
--- 
--- handleImplicit :: ImplicitFun -> Expr -> VarStack -> VarHeap -> MachineState
--- handleImplicit (ImplicitFun f) p s heap = case f p of
---     Left e -> Left $ Left e
---     Right e -> Right $ Machine heap e s
-
-
-
+-- | Rule Set for reducing the machine state, as described in 
+-- @Deriving a lazy abstract machine@.
 ruleSet :: Machine -> MachineState
 ruleSet (Machine heap control stack) = 
     case (control, stack) of
-        
         (Application p e, _) -> Right $ Machine heap e (Right p : stack)
         (Lambda y e, Right p : s) -> Right $ Machine heap (substitute y p e) s
         (Implicit f, Right p : s) -> ruleSetImplicit f p s heap
-        (Var p, _) -> let d   = (Left $ Left ("unknown variable " ++ p)) 
+        (Var p, _) -> let d   = (Left $ Left ("Runtime Error: Unknown variable `" ++ p ++ "`")) 
                           f e = Machine (delete p heap) e (Left p : stack) 
                       in maybe d (Right . f) $ HashMap.lookup p heap
         (Assign v e, []) -> Left $ Right $ Machine (insert v e heap) (Var v) []
         (e, Left v : s) -> Right $ Machine (insert v e heap) e s
         (s, []) -> Left $ Right $ Machine heap control stack
-        (s, a) -> Left $ Left $ "No Rules Apply :" ++ show heap ++ " " ++ show s ++ " " ++ show a
+        (s, a) -> Left $ Left $ "Runtime Error: No Rules Apply!\n\tHeap: " ++ show heap ++ "\n\tControl: " ++ show s ++ "\n\t Stack: " ++ show a
 
+-- | The implicit function rule set
 ruleSetImplicit :: ImplicitFun -> Expr -> VarStack -> VarHeap -> MachineState
 ruleSetImplicit (ImplicitFun f) p s h = ms' ms
     where ms = reduceFull $ Machine h p []
           ms' (Left (Right (Machine h' p' _))) = either (Left . Left) (\e -> Right $ Machine h' e s) (f p')
           ms' x = x
 
+-- | Reduce the machine state until it is in a final state
 reduceFull :: Machine -> MachineState
 reduceFull m = reduceFull' $ ruleSet m
     where reduceFull' (Right m') = reduceFull m'
           reduceFull' ms         = ms
 
+-- | Substitute the expression @e'@ for the variable @s@ in the expression @e@
 substitute :: String -> Expr -> Expr -> Expr
 substitute s e' (Var x) | x == s = e'
                         | otherwise = Var x
@@ -163,16 +143,19 @@ reduce' (Right m) = reduce' (ruleSet m)
 reduce' (Left (Left s)) = Left s
 reduce' (Left (Right (Machine _ e _))) = Right e
 
+-- | Reduce the machine
 reduce :: Machine -> Either String Expr
 reduce = reduce' . Right
 
+-- | reduce many expressions helper
 runMany' :: VarHeap -> [Expr] -> (MachineState, VarHeap, [Expr])
 runMany' h [e] = (reduceFull $ Machine h e [], empty, [])
 runMany' h (e : r) = f $ reduceFull $ Machine h e []
     where f (Left (Right (Machine h' _ _))) = runMany' h' r
           f m = (m, empty, [])
-runMany' _ [] = (Left $ Left ("no expression to parse"), empty, [])
+runMany' _ [] = (Left $ Left "Runtime Error: No expression to reduce", empty, [])
 
+-- | Reduce many expressions
 runMany :: [Expr] -> MachineState
 runMany es = f $ runMany' empty es
     where f (m, _, _) = m

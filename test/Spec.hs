@@ -6,22 +6,22 @@ import Test.QuickCheck
 
 statements :: [(String, Expr, Bool)]
 statements = [
-  ("x := y", Assign (Var "x") (Var "y"), True),
+  ("x := y", Assign Var "x" Var "y", True),
   ("x -> x", Lambda (Var "x") (Var "x"), True),
   ("x|y", Application (Var "x") (Var "y"), True),
   ("v", Var "v", True),
   ("x := (x -> x)", Assign (Var "x") (Lambda (Var "x") (Var "x")), True),
   ("y := (f -> (f|f))", Assign (Var "y") (Lambda (Var "f") (Application (Var "f") (Var "f"))), True),
   ("z := (f -> ((f|f)|f))", Assign (Var "z") (Lambda (Var "f") (Application (Application (Var "f") (Var "f")) (Var "f"))), True),
-  ("1 + 2", (Application (Application (Var "1") (Var "+")) (Var "2")), True),
-  ("1 + 2 * 3 = 7", (Application (Application (Application (Application (Application (Application (Var "1") (Var "+")) (Var "2")) (Var "*")) (Var "3")) (Var "=")) (Var "7")), True),
-  ("(1 + 2) * 3 = 9", (Application (Application (Application (Application (Application (Application (Var "1") (Var "+")) (Var "2")) (Var "*")) (Var "3")) (Var "=")) (Var "9")), True),
-  ("1 + 2 * 3", (Application (Application (Application (Application (Var "1") (Var "+")) (Var "2")) (Var "*")) (Var "3")), True),
-  ("1 + (2 * 3)", (Application (Application (Var "1") (Var "+")) (Application (Application (Var "2") (Var "*")) (Var "3"))), True),
-  ("(1 + 2) * 3", (Application (Application (Application (Application (Var "1") (Var "+")) (Var "2")) (Var "*")) (Var "3")), True),
+  ("1 + 2", Application (Application (Var "1") (Var "+")) (Var "2"), True),
+  ("1 + 2 * 3 = 7", Application (Application (Application (Application (Application (Application (Var "1") (Var "+")) (Var "2")) (Var "*")) (Var "3")) (Var "=")) (Var "7"), True),
+  ("(1 + 2) * 3 = 9", Application (Application (Application (Application (Application (Application (Var "1") (Var "+")) (Var "2")) (Var "*")) (Var "3")) (Var "=")) (Var "9"), True),
+  ("1 + 2 * 3", Application (Application (Application (Application (Var "1") (Var "+")) (Var "2")) (Var "*")) (Var "3"), True),
+  ("1 + (2 * 3)", Application (Application (Var "1") (Var "+")) (Application (Application (Var "2") (Var "*")) (Var "3")), True),
+  ("(1 + 2) * 3", Application (Application (Application (Application (Var "1") (Var "+")) (Var "2")) (Var "*")) (Var "3"), True),
   ("x := 1 + 2", Assign (Var "x") (Application (Application (Var "1") (Var "+")) (Var "2")), True),
   ("x := 1 + 2 | 3", Assign (Var "x") (Application (Application (Application (Var "1") (Var "+")) (Var "2")) (Var "3")), True),
-  ("x := 1 | (y -> y + 1) | 2", (Assign (Var "x") (Application (Application (Var "1") (Lambda (Var "y") (Application (Application (Var "y") (Var "+")) (Var "1")))) (Var "2"))), True)
+  ("x := 1 | (y -> y + 1) | 2", Assign (Var "x") (Application (Application (Var "1") (Lambda (Var "y") (Application (Application (Var "y") (Var "+")) (Var "1")))) (Var "2")), True)
   ]
 
 testParseExpr :: String -> Expr -> Bool
@@ -30,7 +30,7 @@ testParseExpr s e = case parseExpr s of
   Right e' -> e == e'
 
 prop_parseExpr :: String -> Expr -> Bool
-prop_parseExpr s e = testParseExpr s e
+prop_parseExpr = testParseExpr
 
 testAllStatements :: [(String, Expr, Bool)] -> Bool
 testAllStatements [] = True
@@ -46,7 +46,7 @@ testAssignment s = case parseExpr s of
   Right _ -> False
 
 prop_assignment :: String -> Bool
-prop_assignment s = testAssignment s
+prop_assignment = testAssignment
 
 testLambda :: String -> Bool
 testLambda s = case parseExpr s of
@@ -55,7 +55,7 @@ testLambda s = case parseExpr s of
   Right _ -> False
 
 prop_lambda :: String -> Bool
-prop_lambda s = testLambda s
+prop_lambda = testLambda
 
 testApplication :: String -> Bool
 testApplication s = case parseExpr s of
@@ -64,7 +64,7 @@ testApplication s = case parseExpr s of
   Right _ -> False
 
 prop_application :: String -> Bool
-prop_application s = testApplication s
+prop_application = testApplication
 
 testVariable :: String -> Bool
 testVariable s = case parseExpr s of
@@ -73,7 +73,7 @@ testVariable s = case parseExpr s of
   Right _ -> False
 
 prop_variable :: String -> Bool
-prop_variable s = testVariable s
+prop_variable = testVariable
 
 main :: IO ()
 main = do

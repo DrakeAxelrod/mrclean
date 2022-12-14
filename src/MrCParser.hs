@@ -1,11 +1,11 @@
-module MrCParser (Expr (..), parseExpr, parseExpressions) where
+module MrCParser (Expr (..), parseExpr, parseExpressions, parseFile) where
 
 import           Data.Functor.Identity (Identity)
-import           Text.Parsec           (ParseError, eof, many, noneOf, oneOf,
+import           Text.Parsec           (ParseError, eof, noneOf, oneOf,
                                         parse, (<?>), (<|>))
 import           Data.Char             (isAlphaNum, isAscii)
 import           Data.Either           (isRight)
-import           Text.Parsec.Expr      (Assoc (AssocLeft),
+import           Text.Parsec.Expr      (Assoc (AssocLeft, AssocRight),
                                         Operator (Infix, Prefix),
                                         buildExpressionParser)
 import           Text.Parsec.Language  (emptyDef)
@@ -15,18 +15,21 @@ import           Text.Parsec.Combinator (endBy)
 import qualified Text.Parsec.Token     as Tok
 import           Text.Parsec.Char      (char)
 
-import           Test.QuickCheck       (Gen, Arbitrary, arbitrary, sample, listOf1, oneof, sized)
-import           Control.Monad         (liftM, liftM2)
+import           Test.QuickCheck       (Gen, Arbitrary, arbitrary, listOf1, oneof, sized)
+import           Control.Monad         (liftM2)
 
+-- | The expressions data type
 data Expr = Var String
           | Application Expr Expr
           | Lambda Expr Expr
           | Assign Expr Expr
           deriving (Show, Eq)
 
+-- | check if the given character is a valid identifier character
 isValidIdent :: Char -> Bool
 isValidIdent c = isAlphaNum c && isAscii c
 
+-- | check if the given character is a valid identifier character
 validChar :: Gen Char
 validChar = validChar' arbitrary
   where validChar' gc = do c <- gc
@@ -35,28 +38,34 @@ validChar = validChar' arbitrary
                            else 
                             validChar' arbitrary
 
+-- | check if the given string is a valid identifier
 validIdent :: Gen String
 validIdent = listOf1 validChar
 
+-- | genExpr generates an arbitrary expression.
 genExpr :: Gen Expr
 genExpr = sized genExpr'
 
+-- | arbitrary instance for Expr
 instance Arbitrary Expr where
   arbitrary = genExpr
 
+-- | genExpr' generates an expression of the given size.
+-- This is used to generate arbitrary expressions.
 genExpr' :: Int -> Gen Expr
-genExpr' 0 = liftM Var validIdent
-genExpr' n | n > 0 = oneof [ liftM Var validIdent
-                           , liftM2 Application (liftM Var validIdent) subexpr
-                           , liftM2 Lambda (liftM Var validIdent) subexpr
-                           , liftM2 Assign (liftM Var validIdent) subexpr
-                           ]
+genExpr' n | 0 >= n = fmap Var validIdent
+           | n > 0  = oneof [ fmap Var validIdent
+                            , liftM2 Application (fmap Var validIdent) subexpr
+                            , liftM2 Lambda (fmap Var validIdent) subexpr
+                            , liftM2 Assign (fmap Var validIdent) subexpr
+                            ]
   where subexpr = genExpr' (n `div` 2)
 
-
+-- | Test whether the parser is able to parse the given string.
 prop_parseExprValid :: Expr -> Bool
 prop_parseExprValid = isRight . parseExpr . printExpr
 
+-- | printExpr takes an Expr and returns a String representation of it.
 printExpr :: Expr -> String
 printExpr (Var s) = s
 printExpr (Application lhs rhs) = "( " ++ printExpr lhs ++ " | " ++ printExpr rhs ++ " )"
@@ -124,6 +133,7 @@ whiteSpace = Tok.whiteSpace lexer
 expr :: Parser Expr
 expr = buildExpressionParser table term <?> "expression"
 
+-- | parse ; separated expressions
 expressions :: Parser [Expr]
 expressions = endBy expr (Tok.lexeme lexer $ char ';')
 -- | Table of specific parsers for structural langage features. As these
@@ -137,7 +147,7 @@ table = [ [Prefix (reservedOp "$"   >> return (Application (Var "reduce")))]
         , [Infix  (do e <- variable
                       return $ \e' e'' -> Application e'' (Application e' e)) AssocLeft]
         , [Infix  (reservedOp "|"   >> return Application) AssocLeft]
-        , [Infix  (reservedOp "->"  >> return Lambda) AssocLeft]
+        , [Infix  (reservedOp "->"  >> return Lambda) AssocRight]
         , [Infix  (reservedOp ":="  >> return Assign) AssocLeft]
         ]
 
@@ -153,11 +163,13 @@ term =  parens expr
     -- <|> Var <$> operator
     <?> "term"
 
--- | Try parsing the supplied string, returing wether
+-- | Try parsing the supplied string, returing either
 -- the parser failed, @Left@, or the parsed expression, @Right@.
 parseExpr :: String -> Either ParseError Expr
 parseExpr = parse (whiteSpace >> expr <* eof) "<stdin>"
 
+-- | Try parsing multiple expressions from the supplied string, returing either
+-- the parser failed, @Left@, or the parsed expressions, @Right@.
 parseExpressions :: String -> Either ParseError [Expr]
 parseExpressions = parse (whiteSpace >> expressions <* eof) "<stdin>"
 
@@ -166,8 +178,3 @@ parseFile :: String -> IO (Either ParseError [Expr])
 parseFile file = do
   contents <- readFile file
   return $ parse (whiteSpace >> expressions <* eof) file contents
-
-
--- | Load an parse a test file "assets/test.mrc"
-testFile :: IO (Either ParseError Expr)
-testFile = parseFile "assets/test.mrc"

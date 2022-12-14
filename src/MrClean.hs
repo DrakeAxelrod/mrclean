@@ -1,16 +1,17 @@
 module MrClean where
 
-
 import qualified MrCRepl
+import qualified MrCParser
 import           Options.Applicative
 
+-- | Options for the cli
 data Options = Options
   { optStr  :: String
   , optFile :: FilePath
   , authors :: Bool
   }
 
-
+-- | The cli options parser
 options :: Parser Options
 options = Options
       <$> strOption
@@ -31,7 +32,7 @@ options = Options
          <> help "Print the authors of this project")
 
 
-
+-- | The cli
 cli :: IO ()
 cli = do
   mrcBanner
@@ -43,11 +44,12 @@ cli = do
       <> header "The cli for MrClean"
       )
 
+-- | Runner for the cli
 run :: Options -> IO ()
 run (Options "" "" False) = MrCRepl.repl --Entry
-run (Options s "" False)  = putStr s
-run (Options "" f False)  = putStr f
-run (Options _ _ True)    = putStr $ unlines [
+run (Options s "" False)  = putStrLn $ MrCRepl.evaluation s
+run (Options "" f False)  = putStrLn . MrCRepl.evaluation =<< readFile f
+run (Options _ _ True)    = putStrLn $ unlines [
     "MrClean authors:"
   , "Drake Axelrod (drake@draxel.io)"
   , "Hugo Lom (lohugo@chalmers.se)"
@@ -62,7 +64,7 @@ run (Options _ _ False)   = putStr $ unlines [
   , "Try 'mrclean --help' for more information."
   ]
 
-
+-- | Obnoxious banner
 mrcBanner :: IO ()
 mrcBanner = putStr " \n\
 \\x1b[30m            .~!!:                                   ^!~.                                              \n\
