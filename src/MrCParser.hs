@@ -1,4 +1,4 @@
-module MrCParser (Expr (..), parseExpr) where
+module MrCParser (Expr (..), parseExpr, parseExpressions) where
 
 import           Data.Functor.Identity (Identity)
 import           Text.Parsec           (ParseError, eof, many, noneOf, oneOf,
@@ -11,7 +11,9 @@ import           Text.Parsec.Expr      (Assoc (AssocLeft),
 import           Text.Parsec.Language  (emptyDef)
 import           Text.Parsec.Prim      ()
 import           Text.Parsec.String    (Parser)
+import           Text.Parsec.Combinator (endBy)
 import qualified Text.Parsec.Token     as Tok
+import           Text.Parsec.Char      (char)
 
 import           Test.QuickCheck       (Gen, Arbitrary, arbitrary, sample, listOf1, oneof, sized)
 import           Control.Monad         (liftM, liftM2)
@@ -72,8 +74,8 @@ mrCleanDef = emptyDef
           , Tok.commentEnd      = "*/"                    -- ^ end of a block comment.
           , Tok.commentLine     = "//"                    -- ^ line comment.
           , Tok.nestedComments  = True                    -- ^ the language supports nested block comments.
-          , Tok.identStart      = noneOf "\n \t\r\f|()"   -- ^ don't allow any of these characters to start an identifier.
-          , Tok.identLetter     = noneOf "\n \t\r\f|()"   -- ^ don't allow any of these characters to be part of an identifier.
+          , Tok.identStart      = noneOf "\n \t\r\f|();"   -- ^ don't allow any of these characters to start an identifier.
+          , Tok.identLetter     = noneOf "\n \t\r\f|();"   -- ^ don't allow any of these characters to be part of an identifier.
           , Tok.opStart         = oneOf ""                -- ^ not used in this language.
           -- | This parser should accept any legal tail characters of operators.
           -- Note that this parser should even be defined if the language doesn't
@@ -123,7 +125,7 @@ expr :: Parser Expr
 expr = buildExpressionParser table term <?> "expression"
 
 expressions :: Parser [Expr]
-expressions = many expr
+expressions = endBy expr (Tok.lexeme lexer $ char ';')
 -- | Table of specific parsers for structural langage features. As these
 -- features behave much like operators in other languages, they are
 -- encoded as operators.
@@ -160,10 +162,10 @@ parseExpressions :: String -> Either ParseError [Expr]
 parseExpressions = parse (whiteSpace >> expressions <* eof) "<stdin>"
 
 -- | Parse a source-file containing a single expression.
-parseFile :: String -> IO (Either ParseError Expr)
+parseFile :: String -> IO (Either ParseError [Expr])
 parseFile file = do
   contents <- readFile file
-  return $ parse (whiteSpace >> expr <* eof) "" contents
+  return $ parse (whiteSpace >> expressions <* eof) file contents
 
 
 -- | Load an parse a test file "assets/test.mrc"

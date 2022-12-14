@@ -105,18 +105,37 @@ initMachine e = Machine empty e []
 -- (y -> (expr)+y) [3]
 -- (expr)+3 :=
 
+
+-- handleApplication :: VarHeap -> Expr -> Expr -> VarStack -> MachineState
+-- handleApplication heap e p s = Right $ Machine heap e (Right p : s)
+-- 
+-- handleLambda :: String -> Expr -> Expr -> VarStack -> MachineState
+-- handleLambda y e p s = Right $ Machine heap (substitute y p e) s
+--     where heap = case s of
+--             Left n : _ -> insert n (Lambda y e) empty
+--             _ -> empty
+-- 
+-- handleImplicit :: ImplicitFun -> Expr -> VarStack -> VarHeap -> MachineState
+-- handleImplicit (ImplicitFun f) p s heap = case f p of
+--     Left e -> Left $ Left e
+--     Right e -> Right $ Machine heap e s
+
+
+
 ruleSet :: Machine -> MachineState
 ruleSet (Machine heap control stack) = 
     case (control, stack) of
+        
         (Application p e, _) -> Right $ Machine heap e (Right p : stack)
         (Lambda y e, Right p : s) -> Right $ Machine heap (substitute y p e) s
         (Implicit f, Right p : s) -> ruleSetImplicit f p s heap
         (Var p, _) -> let d   = (Left $ Left ("unknown variable " ++ p)) 
                           f e = Machine (delete p heap) e (Left p : stack) 
                       in maybe d (Right . f) $ HashMap.lookup p heap
+        (Assign v e, []) -> Left $ Right $ Machine (insert v e heap) (Var v) []
+        (e, Left v : s) -> Right $ Machine (insert v e heap) e s
         (s, []) -> Left $ Right $ Machine heap control stack
-        (s, a) -> Left $ Left $ "No Rules Apply " ++ show s ++ " " ++ show a
-
+        (s, a) -> Left $ Left $ "No Rules Apply :" ++ show heap ++ " " ++ show s ++ " " ++ show a
 
 ruleSetImplicit :: ImplicitFun -> Expr -> VarStack -> VarHeap -> MachineState
 ruleSetImplicit (ImplicitFun f) p s h = ms' ms
@@ -128,7 +147,6 @@ reduceFull :: Machine -> MachineState
 reduceFull m = reduceFull' $ ruleSet m
     where reduceFull' (Right m') = reduceFull m'
           reduceFull' ms         = ms
-
 
 substitute :: String -> Expr -> Expr -> Expr
 substitute s e' (Var x) | x == s = e'
@@ -147,3 +165,14 @@ reduce' (Left (Right (Machine _ e _))) = Right e
 
 reduce :: Machine -> Either String Expr
 reduce = reduce' . Right
+
+runMany' :: VarHeap -> [Expr] -> (MachineState, VarHeap, [Expr])
+runMany' h [e] = (reduceFull $ Machine h e [], empty, [])
+runMany' h (e : r) = f $ reduceFull $ Machine h e []
+    where f (Left (Right (Machine h' _ _))) = runMany' h' r
+          f m = (m, empty, [])
+runMany' _ [] = (Left $ Left ("no expression to parse"), empty, [])
+
+runMany :: [Expr] -> MachineState
+runMany es = f $ runMany' empty es
+    where f (m, _, _) = m

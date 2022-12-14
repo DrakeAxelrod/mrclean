@@ -1,0 +1,100 @@
+(1 + 2) * (4 / 3);
+/ := _implicit_div;
+* := _implicit_mul;
+- := _implicit_sub;
++ := _implicit_add;
+:multi
+(1 + 2) * (4 / 3)
+/ := _implicit_div;
+* := _implicit_mul;
+- := _implicit_sub;
++ := _implicit_add;
+:multi
+:m
++ := _implicit_add; 1 + 2 + 3 + 4;
++ := _implicit_add; 1 + 2 + 3;
++ := _implicit_add; 1 + 2;
+x := 1 _implicit_add 2; x _implicit_add 3;
+x := 1 _implicit_add 2; x _implicit_add 3
+x := 1 _implicit_add 2; x;
+x := 1 _implicit_add 2; x
+x := 1 _implicit_add 2;
+1 _implicit_add 2;
+:q
+x := 1 _implicit_add 3; x _implicit_add 5;
+1 _implicit_add 3; 1 _implicit_add 5;
+1 _implicit_add 3; 1 _implicit_add 2;
+1 + 3; 1 + 2;
++ := _implicit_add; 1 + 2;
++ := _implicit_add; 1 + 2
+1 _implicit_add 2;
+1 + 2;
+1 + 2
+:he
+:h
+:c
+:q
+1 + 2;
+:q
+1 + 2;
+1 + 2
+:q
+1 + 2; 3 + 4;
+1 + 2; 3 + 4
+1 + 2;
+:q
+:r
+x := 1 _implicit_add 2;
+1 _implicit_add 2;
+1 + 2;
+1 + 2
+3 | x
+x := x -> x _implicit_add 2
+:multi
+x 2
+x := x -> x _implicit_add 2
+:multi
+x := x -> x _implicit_add 2
+:quit
+1 + 2
+x :=
+:multi
+:clear
+:clear
+l
+l
+l
+l
+:multi
+:multi
+:quit
+2
+1 _implicit_add 
+:multi
+:quit
+:clear
+:r
+:help
+1 _implicit_mul 3
+1 _implicit_add 3
+1 _implicit_add +
+1 _implicit_add 0
+1 _implicit_add 2
+:quit
+:help
+:clear
+x := x -> x
+x\ :=\ x\ ->\ x
+:clear
+clear
+1 _implicit_add 2
+1 + 1
+x -> x
+sgsgsgsgg
+sgdsgsgs
+sfsdfsf
+sdfsdf
+sdfsdfsd
+:q
+:help
+help
