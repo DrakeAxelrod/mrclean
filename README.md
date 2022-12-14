@@ -2,7 +2,7 @@
 
 Haskell runtime for clean derivative language
 
-<img src="./assets/giphy.gif" width="100%" height="100%" />
+<!-- <img src="./assets/giphy.gif" width="100%" height="100%" /> -->
 
 ## Proposal Text
 A Pure Functional language implementation relying on graph-reduction of syntax-trees 
