@@ -19,7 +19,7 @@
 quadratic := a -> b -> c -> x -> (a * x * x) + (b * x) + c;
 
 
-main := 10 | (x | (10 | (2 | quadratic)));
+main := 10 | (3 | (10 | (2 | quadratic)));
 
 // main := 1 | x;
 // answer 303

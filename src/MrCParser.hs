@@ -86,10 +86,6 @@ mrCleanDef = emptyDef
           , Tok.identStart      = noneOf "\n \t\r\f|();"   -- ^ don't allow any of these characters to start an identifier.
           , Tok.identLetter     = noneOf "\n \t\r\f|();"   -- ^ don't allow any of these characters to be part of an identifier.
           , Tok.opStart         = oneOf ""                -- ^ not used in this language.
-          -- | This parser should accept any legal tail characters of operators.
-          -- Note that this parser should even be defined if the language doesn't
-          -- support user-defined operators, or otherwise the 'reservedOp'
-          -- parser won't work correctly.
           , Tok.opLetter        = oneOf ""                -- ^ not used in this language.
           , Tok.reservedOpNames = ["|" , "->", ":=", "$"] -- ^ reserved operators.
           , Tok.reservedNames   = ["|" , "->", ":=", "$"] -- ^ reserved names.

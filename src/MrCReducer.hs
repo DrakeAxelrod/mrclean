@@ -4,8 +4,7 @@ import           Data.HashMap (Map, empty, delete, insert)
 import qualified Data.HashMap as HashMap
 import qualified MrCParser
 import           Text.Read    (readMaybe)
-import           Control.Monad.State (State)
-import           Control.Applicative (liftA2, (<|>))
+import           Control.Applicative (liftA2)
 
 -- | The expressions data type
 data Expr = Var String
@@ -111,7 +110,7 @@ ruleSet (Machine heap control stack) =
                       in maybe d (Right . f) $ HashMap.lookup p heap
         (Assign v e, []) -> Left $ Right $ Machine (insert v e heap) (Var v) []
         (e, Left v : s) -> Right $ Machine (insert v e heap) e s
-        (s, []) -> Left $ Right $ Machine heap control stack
+        (_, []) -> Left $ Right $ Machine heap control stack
         (s, a) -> Left $ Left $ "Runtime Error: No Rules Apply!\n\tHeap: " ++ show heap ++ "\n\tControl: " ++ show s ++ "\n\t Stack: " ++ show a
 
 -- | The implicit function rule set

@@ -1,12 +1,8 @@
 module MrCRepl where
 
-import           Control.Monad (unless)
-import           Control.Applicative (liftA)
 import           Data.List     (isPrefixOf)
-import           Data.Either   (either)
 import           MrCParser     (parseExpressions)
-import           System.IO     (IO, putStr, putStrLn, stdout)
-import           MrCReducer    (initMachine, convertExpr, runMany, reduce, Machine (Machine), MachineState)
+import           MrCReducer    (convertExpr, runMany, Machine (..))
 import           Control.Monad.Trans
 import           System.Console.Repline
 import           System.Process (callCommand)
@@ -16,7 +12,7 @@ evaluation :: String -> String
 evaluation s = either show f $ parseExpressions s
   where f e = either id (g . runMany) $ traverse convertExpr e
         g (Left (Right (Machine _ e _))) = show e
-        g (Left (Left s)) = s
+        g (Left (Left e)) = e
         g (Right _) = "something went wrong..."
 
 -- | Repl Monad

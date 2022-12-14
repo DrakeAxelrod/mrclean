@@ -1,15 +1,10 @@
-module MrClean where
+module MrClean (cli) where
 
-import qualified MrCRepl
-import qualified MrCParser
+import           MrCRepl (repl, evaluation)
 import           Options.Applicative
 
 -- | Options for the cli
-data Options = Options
-  { optStr  :: String
-  , optFile :: FilePath
-  , authors :: Bool
-  }
+data Options = Options String FilePath Bool
 
 -- | The cli options parser
 options :: Parser Options
